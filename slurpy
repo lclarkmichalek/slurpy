@@ -1,4 +1,4 @@
-#!/usr/bin/python
+#!/usr/bin/env python
 #
 # slurpy - AUR search/download/update helper
 #
@@ -29,8 +29,7 @@
   -i, --info              show info for PACKAGE(s)
   -s, --search            search for PACKAGE(s)
   -u, --update            check explicitly installed packages for available
-                          updates
-                             if passed with --download flag(s), the download
+                          updates if passed with --download flag(s), the download
                              operation specified will be performed for each
                              available update
 
@@ -98,7 +97,7 @@ class slurpy():
     Members:
      - opts
      - args
-     - a shit ton of consants
+     - a ton of consants
     
     Methods to be overridden:
      - download()
@@ -295,7 +294,7 @@ class slurpy():
         
         Returns true if a new version is available, otherwise false
         """
-        #TODO: What the fuck is going on here? I don't remember.
+        #TODO: What the hell is going on here? I don't remember.
         # We have to do some funky shit in here because of scm version numbering.
         # Most of this may be unnecessary now because idgaf about return codes
         # anymore.
