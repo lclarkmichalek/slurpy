@@ -263,7 +263,7 @@ class slurpy():
             if self.opts.quiet:
                 print pkg[self._NAME]
             else:
-                if self.in_sync_db("community", pkg[self._NAME]):
+                if pkg[self._LOCATION] == '3':
                     repo = "community"
                     category = ""
                 else:
