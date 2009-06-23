@@ -19,7 +19,7 @@
 #          Colin's project can be found at <http://evaryont.github.com/arson>
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2009-06-22 09:42
+# MODIFIED: 2009-06-23 14:28
 
 """usage: slurpy [options] <operation> PACKAGE [PACKAGE2..] 
  operations:              
@@ -244,9 +244,13 @@ class slurpy():
         for arg in self.args:
             json = json_decode(self._SEARCH_URL + arg)
             if json['type'] == 'error':
-                print "slurpy:", json['results'].lower()
-                sys.exit()
-            pkgs.extend(json['results'])
+                if json['results'].lower() != "no results found":
+                    self._c_print(self._colors['Red'] + "slurpy: " +  json['results'].lower())
+            else:
+                pkgs.extend(json['results'])
+
+        if pkgs == []:
+            return
 
         # sort
         spkgs = sorted(pkgs, key=lambda k: k[self._NAME])
