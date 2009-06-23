@@ -377,6 +377,8 @@ class slurpy():
         if 'preserve' in kwargs:
             if not kwargs['preserve']:
                 print
+        else:
+            print
 
 # main processing 
 if __name__ == '__main__':
@@ -399,7 +401,7 @@ if __name__ == '__main__':
             updates.append(pkg) 
         slurp.args = updates
 
-        slurp.write("downloading updates...\n")
+        slurp.write("downloading updates...")
         display_result(*slurp.download())
 
     elif slurp.opts.download:
@@ -408,7 +410,7 @@ if __name__ == '__main__':
                 os.chdir(slurp.opts.target_dir)
         except OSError:
             slurp.write("slurpy: target dir does not exist or is not a",
-                        "directory")
+                        "directory\n")
             sys.exit()
         display_result(*slurp.download())
 
