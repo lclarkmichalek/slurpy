@@ -42,7 +42,7 @@
   -t DIR, --save-to=DIR   target directory where files will be downloaded
 
   -h, --help              show this message
-  --version               show version information"""
+      --version           show version information"""
 
 import glob
 import os
@@ -61,17 +61,6 @@ except ImportError:
     import json as Json
 
 # utility functions
-def strip_slashes(str):
-    """Remove extraneous backslashes (\) from <str>"""
-    return re.sub(r"\\(.)", r"\1", str.encode('UTF-8'))
-
-def json_decode(url):
-    """Open <url> and decode the json response"""
-    try: 
-        return Json.decode(urllib.urlopen(url).read())
-    except AttributeError:
-        return Json.loads(urllib.urlopen(url).read())
-
 def display_result(pkgs, deps):
     """Print a nicely formated result of <pkgs> and <deps>"""
     if pkgs:
@@ -88,6 +77,18 @@ def display_result(pkgs, deps):
             print "\ndependencies found in pacman repos:"
             for dep in deps:
                 print "   ", dep
+
+def json_decode(url):
+    """Open <url> and decode the json response"""
+    try: 
+        return Json.decode(urllib.urlopen(url).read())
+    except AttributeError:
+        return Json.loads(urllib.urlopen(url).read())
+
+def strip_slashes(str):
+    """Remove extraneous backslashes (\) from <str>"""
+    return re.sub(r"\\(.)", r"\1", str.encode('UTF-8'))
+
 
 # class definitions
 class slurpy():
@@ -106,28 +107,28 @@ class slurpy():
      - update()
     """
 
-    # This class really is the AUR subclass.  Until I figure out how to implement
-    # the ABS side, this will stay the only class.
+    # This class really is the AUR subclass.  Until I figure out how to 
+    # implement the ABS side, this will stay the only class.
 
-    _DOWNLOAD_URL = "http://aur.archlinux.org"
-    _INFO_URL = "http://aur.archlinux.org/rpc.php?type=info&arg="
-    _SEARCH_URL = "http://aur.archlinux.org/rpc.php?type=search&arg="
-    _PACMAN_CACHE = "/var/lib/pacman/local"
-    _PACMAN_SYNC = "/var/lib/pacman/sync/"
+    DOWNLOAD_URL = "http://aur.archlinux.org"
+    INFO_URL = "http://aur.archlinux.org/rpc.php?type=info&arg="
+    SEARCH_URL = "http://aur.archlinux.org/rpc.php?type=search&arg="
+    PACMAN_CACHE = "/var/lib/pacman/local"
+    PACMAN_SYNC = "/var/lib/pacman/sync/"
 
     # json constants
-    _ID = "ID"
-    _NAME = "Name"
-    _VERSION = "Version"
-    _CATEGORY = "CategoryID"
-    _DESCRIPTION = "Description"
-    _LOCATION = "LocationID"
-    _URL = "URL"
-    _PATH = "URLPath"
-    _LICENSE = "License"
-    _VOTES = "NumVotes"
-    _OUT_OF_DATE = "OutOfDate"
-    _CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators", 
+    ID = "ID"
+    NAME = "Name"
+    VERSION = "Version"
+    CATEGORY = "CategoryID"
+    DESCRIPTION = "Description"
+    LOCATION = "LocationID"
+    URL = "URL"
+    PATH = "URLPath"
+    LICENSE = "License"
+    VOTES = "NumVotes"
+    OUT_OF_DATE = "OutOfDate"
+    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators", 
                                "games", "gnome", "i18n", "kde", "lib", 
                                "modules", "multimedia", "network", "office", 
                                "science", "system", "x11", "xfce", "kernels"]
@@ -152,18 +153,19 @@ class slurpy():
                 repodeps.append(arg)
                 continue
 
-            json = json_decode(self._INFO_URL + arg)
+            json = json_decode(self.INFO_URL + arg)
 
             if json['type'] == 'error':
-                print "slurpy:", arg, json['results'].lower()
+                self.write("slurpy: %s, %s" % (arg, json['results'].lower()))
                 return(dledpkgs, repodeps)
 
             pkg = json['results']
-            url = self._DOWNLOAD_URL + strip_slashes(pkg[self._PATH])
+            url = self.DOWNLOAD_URL + strip_slashes(pkg[self.PATH])
             file = url.split('/')[-1].split('.tar.gz')[0]
             if not self.opts.force:
                 if os.path.exists(file + '.tar.gz') or os.path.exists(file):
-                    print "slurpy: file exists. pass -f to force this operation"
+                    self.write("slurpy: file exists. pass -f to force this "\
+                               "operation")
                     sys.exit()
 
             # download .tar.gz
@@ -177,7 +179,7 @@ class slurpy():
                 fp.extractall()
                 fp.close()
             except:
-                print 'slurpy: error extracting archive %s.tar.gz' % file
+                self.write("slurpy: error extracting archive %s.tar.gz" % file)
                 os.unlink(file + '.tar.gz')
                 sys.exit()
 
@@ -213,39 +215,49 @@ class slurpy():
     def info(self):
         """Prints all known info about each package in <self.args>"""
         for arg in self.args:
-            json = json_decode(self._INFO_URL + arg)
+            json = json_decode(self.INFO_URL + arg)
             if json['type'] == 'error':
-                print "slurpy:", json['results'].lower()
+                self.write("slurpy: %s" % json['results'].lower())
                 sys.exit()
             pkg = json['results']
-            if pkg[self._LOCATION] == 3:
+            if pkg[self.LOCATION] == 3:
                 repo = "community"
             else:
                 repo = "aur"
 
-            if pkg[self._OUT_OF_DATE] == 1:
+            if pkg[self.OUT_OF_DATE] == '0':
                 out_of_date = "No"
             else:
                 out_of_date = "Yes"
 
-            print "Repository      : %s\n" % repo, \
-                  "Name            : %s\n" % pkg[self._NAME],\
-                  "Versio          : %s\n" % pkg[self._VERSION],\
-                  "URL             : %s\n" % strip_slashes(pkg[self._URL]),\
-                  "Category        : %s\n" % self._CATEGORIES[int(pkg[self._CATEGORY])],\
-                  "Licenses        : %s\n" % pkg[self._LICENSE],\
-                  "Number of Votes : %s\n" % pkg[self._VOTES],\
-                  "Out of Date     : %s\n" % out_of_date,\
-                  "Description     : %s\n" % strip_slashes(pkg[self._DESCRIPTION])
+            self.write("Repository      : %s\n" % repo + \
+                  "Name            : %s\n" % pkg[self.NAME] + \
+                  "Version         : %s\n" % pkg[self.VERSION] + \
+                  "URL             : %s\n" % strip_slashes(pkg[self.URL]) + \
+                  "Category        : %s\n" % self.CATEGORIES[int(pkg[self.CATEGORY])] + \
+                  "Licenses        : %s\n" % pkg[self.LICENSE] + \
+                  "Number of Votes : %s\n" % pkg[self.VOTES] + \
+                  "Out of Date     : %s\n" % out_of_date + \
+                  "Description     : %s\n" % strip_slashes(pkg[self.DESCRIPTION]))
+
+    def in_sync_db(self, repo, name): 
+        """Checks if <name> exists in the local syncdb for <repo>
+
+        Returns true if found, otherwise false
+        """
+        syncd = self.PACMAN_SYNC + repo
+        if glob.glob(syncd + "/" + name + "-*"):
+            return True
+        return False
 
     def search(self):
         """Search the AUR for <self.args> and print results to the screen"""
         pkgs = []
         for arg in self.args:
-            json = json_decode(self._SEARCH_URL + arg)
+            json = json_decode(self.SEARCH_URL + arg)
             if json['type'] == 'error':
                 if json['results'].lower() != "no results found":
-                    self._c_print(self._colors['Red'] + "slurpy: " +  json['results'].lower())
+                    self.write("slurpy: " % json['results'].lower())
             else:
                 pkgs.extend(json['results'])
 
@@ -253,7 +265,7 @@ class slurpy():
             return
 
         # sort
-        spkgs = sorted(pkgs, key=lambda k: k[self._NAME])
+        spkgs = sorted(pkgs, key=lambda k: k[self.NAME])
 
         # remove dups -- note: extra list traversal, but imo it's worth it
         i=0
@@ -265,28 +277,29 @@ class slurpy():
 
         for pkg in spkgs:
             if self.opts.quiet:
-                print pkg[self._NAME]
+                self.write(pkg[self.NAME])
             else:
-                if pkg[self._LOCATION] == '3':
+                if pkg[self.LOCATION] == '3':
                     repo = "community"
                     category = ""
                 else:
                     repo = "aur"
 
-                print "%s/%s %s" % (repo, pkg[self._NAME], pkg[self._VERSION])
-                print "        %s" % strip_slashes(pkg[self._DESCRIPTION])
+                self.write("%s/%s %s" % (repo, pkg[self.NAME], 
+                                         pkg[self.VERSION]))
+                self.write("    %s" % strip_slashes(pkg[self.DESCRIPTION]))
 
     def update(self):
         """Checks all explicitly installed packages for updates in the AUR"""
         updates = []
 
         if not self.opts.quiet:
-            print "checking for package updates..."
+            self.write("checking for package updates...")
 
         fp = os.popen("pacman -Qm")
         for ln in fp.readlines():
             name, version = ln[:-1].split(' ')
-            pkg = json_decode(self._INFO_URL + name)['results']
+            pkg = json_decode(self.INFO_URL + name)['results']
             if pkg != "No result found":
                 if self.update_available(pkg['Name'], pkg['Version']):
                     updates.append((name, pkg['Version']))
@@ -302,10 +315,10 @@ class slurpy():
         # We have to do some funky shit in here because of scm version numbering.
         # Most of this may be unnecessary now because idgaf about return codes
         # anymore.
-        if os.path.exists(self._PACMAN_CACHE + "/" + name + "-" + version):
+        if os.path.exists(self.PACMAN_CACHE + "/" + name + "-" + version):
             return False
         else:
-            glb = glob.glob(self._PACMAN_CACHE + "/" + name + "-*")
+            glb = glob.glob(self.PACMAN_CACHE + "/" + name + "-*")
             if len(glb) == 1:
                 pkg_name = os.path.basename(glb[0])
                 r_scm = re.compile('-[0-9]{8}-[0-9]+$')
@@ -316,10 +329,10 @@ class slurpy():
                 elif r_pkg.search(pkg_name):
                     scm_installed = False
                 else:
-                    print "slurpy: failed to detect pkg version type. please contact \
-                            my developer with the below info"
-                    print "pkg_name:", name, pkg_name
-                    print "pkg_version:", version
+                    self.write("slurpy: failed to detect pkg version type. "\
+                            "please contact my developer with the below info")
+                    self.write("pkg_name: %s %s" % (name, pkg_name))
+                    self.write("pkg_version: %s" % version)
                     sys.exit()
                 
                 if r_scm.search(name + "-" + version):
@@ -352,16 +365,9 @@ class slurpy():
                     else:
                         return False
 
-    def in_sync_db(self, repo, name): 
-        """Checks if <name> exists in the local syncdb for <repo>
-
-        Returns true if found, otherwise false
-        """
-        syncd = self._PACMAN_SYNC + repo
-        if glob.glob(syncd + "/" + name + "-*"):
-            return True
-        return False
-
+    def write(self, str, type=None):
+        """print wrapper: can be overridden to easily provide colored ouput"""
+        print str
 
 # main processing 
 if __name__ == '__main__':
@@ -384,7 +390,7 @@ if __name__ == '__main__':
             updates.append(pkg) 
         slurp.args = updates
 
-        print "downloading updates...\n"
+        slurp.write("downloading updates...\n")
         display_result(*slurp.download())
 
     elif slurp.opts.download:
@@ -392,7 +398,8 @@ if __name__ == '__main__':
             if slurp.opts.target_dir is not None:
                 os.chdir(slurp.opts.target_dir)
         except OSError:
-            print "slurpy: target dir does not exist or is not a directory"
+            slurp.write("slurpy: target dir does not exist or is not a "\
+                        "directory")
             sys.exit()
         display_result(*slurp.download())
 
@@ -403,10 +410,10 @@ if __name__ == '__main__':
     elif slurp.opts.update:
         for pkg, version in slurp.update():
             if slurp.opts.quiet:
-                print pkg 
+                slurp.write(pkg)
             elif not slurp.opts.download:
-                print "-", pkg, version
+                slurp.write("- %s %s" % (pkg, version))
     else:
-        print __doc__ 
+        slurp.write(__doc__)
 
 # vim:sw=4:ts=4:sts=4:
