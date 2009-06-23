@@ -156,7 +156,7 @@ class slurpy():
             json = json_decode(self.INFO_URL + arg)
 
             if json['type'] == 'error':
-                self.write("slurpy: %s, %s" % (arg, json['results'].lower()))
+                self.write("slurpy:", arg, json['results'].lower())
                 return(dledpkgs, repodeps)
 
             pkg = json['results']
@@ -164,7 +164,7 @@ class slurpy():
             file = url.split('/')[-1].split('.tar.gz')[0]
             if not self.opts.force:
                 if os.path.exists(file + '.tar.gz') or os.path.exists(file):
-                    self.write("slurpy: file exists. pass -f to force this "\
+                    self.write("slurpy: file exists. pass -f to force this",
                                "operation")
                     sys.exit()
 
@@ -217,7 +217,7 @@ class slurpy():
         for arg in self.args:
             json = json_decode(self.INFO_URL + arg)
             if json['type'] == 'error':
-                self.write("slurpy: %s" % json['results'].lower())
+                self.write("slurpy:", json['results'].lower())
                 sys.exit()
             pkg = json['results']
             if pkg[self.LOCATION] == 3:
@@ -230,14 +230,14 @@ class slurpy():
             else:
                 out_of_date = "Yes"
 
-            self.write("Repository      : %s\n" % repo + \
-                  "Name            : %s\n" % pkg[self.NAME] + \
-                  "Version         : %s\n" % pkg[self.VERSION] + \
-                  "URL             : %s\n" % strip_slashes(pkg[self.URL]) + \
-                  "Category        : %s\n" % self.CATEGORIES[int(pkg[self.CATEGORY])] + \
-                  "Licenses        : %s\n" % pkg[self.LICENSE] + \
-                  "Number of Votes : %s\n" % pkg[self.VOTES] + \
-                  "Out of Date     : %s\n" % out_of_date + \
+            self.write("Repository      : %s\n" % repo,
+                  "Name            : %s\n" % pkg[self.NAME], 
+                  "Version         : %s\n" % pkg[self.VERSION],
+                  "URL             : %s\n" % strip_slashes(pkg[self.URL]),
+                  "Category        : %s\n" % self.CATEGORIES[int(pkg[self.CATEGORY])],
+                  "Licenses        : %s\n" % pkg[self.LICENSE],
+                  "Number of Votes : %s\n" % pkg[self.VOTES],
+                  "Out of Date     : %s\n" % out_of_date,
                   "Description     : %s\n" % strip_slashes(pkg[self.DESCRIPTION]))
 
     def in_sync_db(self, repo, name): 
@@ -257,7 +257,7 @@ class slurpy():
             json = json_decode(self.SEARCH_URL + arg)
             if json['type'] == 'error':
                 if json['results'].lower() != "no results found":
-                    self.write("slurpy: " % json['results'].lower())
+                    self.write("slurpy:", json['results'].lower())
             else:
                 pkgs.extend(json['results'])
 
@@ -287,7 +287,7 @@ class slurpy():
 
                 self.write("%s/%s %s" % (repo, pkg[self.NAME], 
                                          pkg[self.VERSION]))
-                self.write("    %s" % strip_slashes(pkg[self.DESCRIPTION]))
+                self.write("    ", strip_slashes(pkg[self.DESCRIPTION]))
 
     def update(self):
         """Checks all explicitly installed packages for updates in the AUR"""
@@ -329,10 +329,10 @@ class slurpy():
                 elif r_pkg.search(pkg_name):
                     scm_installed = False
                 else:
-                    self.write("slurpy: failed to detect pkg version type. "\
+                    self.write("slurpy: failed to detect pkg version type. ",
                             "please contact my developer with the below info")
-                    self.write("pkg_name: %s %s" % (name, pkg_name))
-                    self.write("pkg_version: %s" % version)
+                    self.write("pkg_name:", name, pkg_name)
+                    self.write("pkg_version:", version)
                     sys.exit()
                 
                 if r_scm.search(name + "-" + version):
@@ -365,9 +365,18 @@ class slurpy():
                     else:
                         return False
 
-    def write(self, str, type=None):
-        """print wrapper: can be overridden to easily provide colored ouput"""
-        print str
+    def write(self, *args, **kwargs):
+        """print wrapper: can be overridden to easily provide colored ouput
+
+        optional kwargs: preserve = True/False - if true, keep output on end of
+                                    the line, rather than appending a newline
+        """
+        for str in args:
+            print str,
+
+        if 'preserve' in kwargs:
+            if not kwargs['preserve']:
+                print
 
 # main processing 
 if __name__ == '__main__':
@@ -398,7 +407,7 @@ if __name__ == '__main__':
             if slurp.opts.target_dir is not None:
                 os.chdir(slurp.opts.target_dir)
         except OSError:
-            slurp.write("slurpy: target dir does not exist or is not a "\
+            slurp.write("slurpy: target dir does not exist or is not a",
                         "directory")
             sys.exit()
         display_result(*slurp.download())
