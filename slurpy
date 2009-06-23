@@ -145,12 +145,12 @@ class slurpy():
         repodeps = [] # holds list of dependencies available in pacman repos
         for arg in self.args:
             if arg in ignore: 
-                return (dledpkgs, repodeps)
+                continue
 
             if (self.in_sync_db("core", arg) or self.in_sync_db("extra", arg) 
                     or self.in_sync_db("community", arg)):
                 repodeps.append(arg)
-                return(dledpkgs, repodeps)
+                continue
 
             json = json_decode(self._INFO_URL + arg)
 
