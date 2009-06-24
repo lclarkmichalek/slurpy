@@ -490,10 +490,10 @@ if __name__ == '__main__':
     elif slurp.opts.update:
         for pkg, version in slurp.update():
             if slurp.opts.quiet:
-                slurp.write(pkg)
+                slurp.write_ln(pkg)
             elif not slurp.opts.download:
-                slurp.write(pkg, color="white", bold=True, preserve=True)
-                slurp.write(" " + version, color="green", bold=True)
+                slurp.write(pkg, color="white", bold=True)
+                slurp.write_ln(" " + version, color="green", bold=True)
     else:
         slurp.write(__doc__)
 
