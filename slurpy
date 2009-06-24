@@ -101,6 +101,7 @@ class slurpy():
     SEARCH_URL = "http://aur.archlinux.org/rpc.php?type=search&arg="
     PACMAN_CACHE = "/var/lib/pacman/local"
     PACMAN_SYNC = "/var/lib/pacman/sync/"
+    COLOR_CONF = "/etc/pacman.d/color.conf"
 
     # json constants
     ID = "ID"
@@ -122,32 +123,54 @@ class slurpy():
     def __init__(self, opts, args):
         self.opts = opts
         self.args = args
-            
+
+        # default colors to be used if COLOR_CONF is not readable
+        self.colors = {"red":"boldred", "green":"boldgreen",
+                       "yellow":"boldyellow", "blue":"boldblue",
+                       "magenta":"boldmagenta", "cyan":"boldcyan",
+                       "white":"boldwhite"}
+
+        # read COLOR_CONF to get pacman-color's settings
+        try:
+            fp = open(self.COLOR_CONF, 'r')
+            conf = fp.read()
+            fp.close()
+        except IOError:
+            if self.opts.verbose:
+                self.write_ln("error reading color.conf, using default colors",
+                              type="warning")
+            return
+
+        for color in self.colors:
+            set = re.findall("^\s*"+color.capitalize()+".*", conf, re.M) 
+            set = set[0].split('=')[1].strip()
+            set = re.sub("intensive\s*", "bold", set)
+            self.colors[color] = set
 
     def display_result(self, pkgs, deps):
         """Print a nicely formated result of <pkgs> and <deps>"""
         if pkgs:
             if len(pkgs) == 1 and not deps:
-                self.write(pkgs[0], color="boldwhite")
+                self.write(pkgs[0], color="white")
                 self.write(" downloaded to ")
-                self.write_ln(os.getcwd(), color="boldgreen")
+                self.write_ln(os.getcwd(), color="green")
             else:
                 self.write("packages downloaded to ")
-                self.write(os.getcwd(), color="boldgreen")
+                self.write(os.getcwd(), color="green")
                 self.write_ln(":")
                 for pkg in pkgs:
-                    self.write_ln("   ", pkg, color="boldwhite")
+                    self.write_ln("   ", pkg, color="white")
         if deps:
             if len(deps) == 1 and not pkgs:
-                self.write(deps[0], color="boldwhite")
+                self.write(deps[0], color="white")
                 self.write(" is available in ")
-                self.write_ln("pacman repos", color="boldyellow")
+                self.write_ln("pacman repos", color="yellow")
             else:
                 self.write("\ndependencies found in ")
-                self.write("pacman repos", color="boldyellow")
+                self.write("pacman repos", color="yellow")
                 self.write_ln(":")
                 for dep in deps:
-                    self.write_ln("   ", dep, color="boldwhite")
+                    self.write_ln("   ", dep, color="white")
 
     def download(self, ignore=[]):
         """Downloads all packages in <self.args>
@@ -244,14 +267,14 @@ class slurpy():
                 out_of_date = "Yes"
 
             self.write("Repository      : ")
-            self.write_ln(repo, color="boldmagenta")
+            self.write_ln(repo, color="magenta")
             self.write("Name            : ")
-            self.write_ln(pkg[self.NAME], color="boldwhite")
+            self.write_ln(pkg[self.NAME], color="white")
             self.write("Version         : ")
             if out_of_date == "Yes":
-                self.write_ln(pkg[self.VERSION], color="boldred")
+                self.write_ln(pkg[self.VERSION], color="red")
             else:
-                self.write_ln(pkg[self.VERSION], color="boldgreen")
+                self.write_ln(pkg[self.VERSION], color="green")
             self.write("URL             : ")
             self.write_ln(strip_slashes(pkg[self.URL]))
             self.write("Category        : ")
@@ -262,9 +285,9 @@ class slurpy():
             self.write_ln(pkg[self.VOTES])
             self.write("Out of Date     : ")
             if out_of_date == "Yes":
-                self.write_ln(out_of_date, color="boldred")
+                self.write_ln(out_of_date, color="red")
             else:
-                self.write_ln(out_of_date, color="boldgreen")
+                self.write_ln(out_of_date, color="green")
             self.write("Description     : ")
             self.write_ln(strip_slashes(pkg[self.DESCRIPTION]))
 
@@ -305,7 +328,7 @@ class slurpy():
 
         for pkg in spkgs:
             if self.opts.quiet:
-                self.write_ln(pkg[self.NAME], color="boldwhite")
+                self.write_ln(pkg[self.NAME], color="white")
             else:
                 if pkg[self.LOCATION] == '3':
                     repo = "community"
@@ -313,13 +336,13 @@ class slurpy():
                 else:
                     repo = "aur"
 
-                self.write(repo, color="boldmagenta")
+                self.write(repo, color="magenta")
                 self.write("/")
-                self.write(pkg[self.NAME], color="boldwhite")
+                self.write(pkg[self.NAME], color="white")
                 if pkg[self.OUT_OF_DATE] == '0':
-                    self.write_ln(" " + pkg[self.VERSION], color="boldgreen")
+                    self.write_ln(" " + pkg[self.VERSION], color="green")
                 else:
-                    self.write_ln(" " + pkg[self.VERSION], color="boldred")
+                    self.write_ln(" " + pkg[self.VERSION], color="red")
 
                 self.write_ln("    ", strip_slashes(pkg[self.DESCRIPTION]))
 
@@ -403,12 +426,11 @@ class slurpy():
     def write(self, *args, **kwargs):
         """print wrapper: provides an easy way to print colors and templates
 
-        optional kwargs: color = one of the 9 ansi colors:
-                                 gray, red, green, yellow, blue, magenta,
-                                 cyan, white, crimson
+        optional kwargs: color = one of the following colors:
+                                 red, green, yellow, blue, magenta, cyan, white
+
                          type = templates defined as follows:
                             "error", prepends bolded red "error: " to str
-
         """
 
         str = ' '.join(args)
@@ -421,7 +443,9 @@ class slurpy():
             str = self.colorfy(str, kwargs['color'])
 
         if kwargs['type'] == "error":
-            str = self.colorfy("error: ", "boldred") + str
+            str = self.colorfy("error: ", "red") + str
+        elif kwargs['type'] == "warning":
+            str = self.colorfy("warning: ", "yellow") + str
 
         sys.stdout.write(str)
 
@@ -431,22 +455,23 @@ class slurpy():
 
     def colorfy(self, str, col):
         """Returns <str> with the ansi escape codes wrapping the string"""
-        colors = {"black":   "0",  "gray":        "9",
-                  "red":     "1",  "boldred":     "10",
-                  "green":   "2",  "boldgreen":   "11",
-                  "yellow":  "3",  "boldyellow":  "12",
-                  "blue":    "4",  "boldblue":    "13",
-                  "magenta": "5",  "boldmagenta": "14",
-                  "cyan":    "6",  "boldcyan":    "15",
-                  "white":   "7",  "boldwhite":   "16"}
-        
+        colors = {"black":      "0",  "gray":           "9",
+                  "red":        "1",  "boldred":        "10",
+                  "green":      "2",  "boldgreen":      "11",
+                  "yellow":     "3",  "boldyellow":     "12",
+                  "blue":       "4",  "boldblue":       "13",
+                  "magenta":    "5",  "boldmagenta":    "14",
+                  "cyan":       "6",  "boldcyan":       "15",
+                  "white":      "7",  "boldwhite":      "16",
+                  "foreground": "8",  "boldforeground": "17"}
+
         if not self.opts.color or col not in colors:
             return str
-        elif re.match("bold", col):
-            col = re.sub("bold(.*)", "\\1", col)
+        elif self.colors[col][:4] == "bold":
+            col = self.colors[col][4:]
             return "\033[1;3" + colors[col] + "m" + str + "\033[1;m"
         else:
-            return "\033[3" + colors[col] + "m" + str + "\033[1;m"
+            return "\033[3" + colors[self.colors[col]] + "m" + str + "\033[1;m"
 
 # main processing 
 if __name__ == '__main__':
@@ -461,6 +486,7 @@ if __name__ == '__main__':
     parser.add_option('-s', '--search', action='store_true')
     parser.add_option('-t', '--save-to', dest='target_dir', action='store') 
     parser.add_option('-u', '--update', action='store_true')
+    parser.add_option('-v', '--verbose', action='store_true')
     
     slurp = slurpy(*parser.parse_args())
 
@@ -493,8 +519,8 @@ if __name__ == '__main__':
             if slurp.opts.quiet:
                 slurp.write_ln(pkg)
             elif not slurp.opts.download:
-                slurp.write(pkg, color="boldwhite")
-                slurp.write_ln(" " + version, color="boldgreen")
+                slurp.write(pkg, color="white")
+                slurp.write_ln(" " + version, color="green")
     else:
         slurp.write(__doc__)
 
