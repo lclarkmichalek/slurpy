@@ -242,15 +242,30 @@ class slurpy():
             else:
                 out_of_date = "Yes"
 
-            self.write("Repository      : %s\n" % repo,
-                  "Name            : %s\n" % pkg[self.NAME], 
-                  "Version         : %s\n" % pkg[self.VERSION],
-                  "URL             : %s\n" % strip_slashes(pkg[self.URL]),
-                  "Category        : %s\n" % self.CATEGORIES[int(pkg[self.CATEGORY])],
-                  "Licenses        : %s\n" % pkg[self.LICENSE],
-                  "Number of Votes : %s\n" % pkg[self.VOTES],
-                  "Out of Date     : %s\n" % out_of_date,
-                  "Description     : %s\n" % strip_slashes(pkg[self.DESCRIPTION]))
+            self.write("Repository      : ")
+            self.write_ln(repo, color="magenta", bold=True)
+            self.write("Name            : ")
+            self.write_ln(pkg[self.NAME], color="white", bold=True)
+            self.write("Version         : ")
+            if out_of_date == "Yes":
+                self.write_ln(pkg[self.VERSION], color="red", bold=True)
+            else:
+                self.write_ln(pkg[self.VERSION], color="green", bold=True)
+            self.write("URL             : ")
+            self.write_ln(strip_slashes(pkg[self.URL]))
+            self.write("Category        : ")
+            self.write_ln(self.CATEGORIES[int(pkg[self.CATEGORY])])
+            self.write("Licenses        : ")
+            self.write_ln(pkg[self.LICENSE])
+            self.write("Number of Votes : ")
+            self.write_ln(pkg[self.VOTES])
+            self.write("Out of Date     : ")
+            if out_of_date == "Yes":
+                self.write_ln(out_of_date, color="red", bold=True)
+            else:
+                self.write_ln(out_of_date, color="green", bold=True)
+            self.write("Description     : ")
+            self.write_ln(strip_slashes(pkg[self.DESCRIPTION]))
 
     def in_sync_db(self, repo, name): 
         """Checks if <name> exists in the local syncdb for <repo>
