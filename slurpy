@@ -137,9 +137,10 @@ class slurpy():
 
         for color in self.colors:
             set = re.findall("^\s*"+color.capitalize()+".*", conf, re.M) 
-            set = set[0].split('=')[1].strip()
-            set = re.sub("intensive\s*", "bold", set)
-            self.colors[color] = set
+            if len(set):
+                set = set[0].split('=')[1].strip()
+                set = re.sub("intensive\s*", "bold", set)
+                self.colors[color] = set
 
     def display_result(self, pkgs, deps):
         """Print a nicely formated result of <pkgs> and <deps>"""
