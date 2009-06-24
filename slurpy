@@ -272,9 +272,9 @@ class slurpy():
             else:
                 self.write_ln(pkg[self.VERSION], color="green")
             self.write("URL             : ")
-            self.write_ln(strip_slashes(pkg[self.URL]))
+            self.write_ln(strip_slashes(pkg[self.URL]), color="cyan")
             self.write("Category        : ")
-            self.write_ln(self.CATEGORIES[int(pkg[self.CATEGORY])], color="blue")
+            self.write_ln(self.CATEGORIES[int(pkg[self.CATEGORY])])
             self.write("Licenses        : ")
             self.write_ln(pkg[self.LICENSE])
             self.write("Number of Votes : ")
