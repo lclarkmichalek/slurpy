@@ -29,7 +29,8 @@
   -i, --info              show info for PACKAGE(s)
   -s, --search            search for PACKAGE(s)
   -u, --update            check explicitly installed packages for available
-                          updates if passed with --download flag(s), the download
+                          updates 
+                             if passed with --download flag(s), the download
                              operation specified will be performed for each
                              available update
 
@@ -38,6 +39,8 @@
           Operations take precidence according to the order above.
 
  options:
+  -c, --color             use colored output (ANSI escape codes, might break 
+                          for you)
   -q, --quiet             show only package names in search/update results
   -t DIR, --save-to=DIR   target directory where files will be downloaded
 
@@ -61,23 +64,6 @@ except ImportError:
     import json as Json
 
 # utility functions
-def display_result(pkgs, deps):
-    """Print a nicely formated result of <pkgs> and <deps>"""
-    if pkgs:
-        if len(pkgs) == 1 and not deps:
-            print pkgs[0], "downloaded to", os.getcwd()
-        else:
-            print "packages downloaded to %s:" % os.getcwd()
-            for pkg in pkgs:
-                print "   ", pkg
-    if deps:
-        if len(deps) == 1 and not pkgs:
-            print deps[0], "is available in pacman repos"
-        else:
-            print "\ndependencies found in pacman repos:"
-            for dep in deps:
-                print "   ", dep
-
 def json_decode(url):
     """Open <url> and decode the json response"""
     try: 
@@ -136,6 +122,31 @@ class slurpy():
     def __init__(self, opts, args):
         self.opts = opts
         self.args = args
+            
+
+    def display_result(self, pkgs, deps):
+        """Print a nicely formated result of <pkgs> and <deps>"""
+        if pkgs:
+            if len(pkgs) == 1 and not deps:
+                self.write(pkgs[0], color="white", bold=True)
+                self.write(" downloaded to ")
+                self.write_ln(os.getcwd(), color="green", bold=True)
+            else:
+                self.write("packages downloaded to ")
+                self.write(os.getcwd(), color="green", bold=True)
+                self.write_ln(":")
+                for pkg in pkgs:
+                    self.write_ln("   ", pkg, color="white", bold=True)
+        if deps:
+            if len(deps) == 1 and not pkgs:
+                self.write(deps[0], "is available in ")
+                self.write_ln("pacman repos", color="yellow", bold=True)
+            else:
+                self.write("\ndependencies found in ")
+                self.write("pacman repos", color="yellow", bold=True)
+                self.write_ln(":")
+                for dep in deps:
+                    self.write_ln("   ", dep, color="white", bold=True)
 
     def download(self, ignore=[]):
         """Downloads all packages in <self.args>
@@ -156,7 +167,7 @@ class slurpy():
             json = json_decode(self.INFO_URL + arg)
 
             if json['type'] == 'error':
-                self.write("slurpy:", arg, json['results'].lower())
+                self.write_ln(arg, json['results'].lower(), type="error")
                 return(dledpkgs, repodeps)
 
             pkg = json['results']
@@ -164,8 +175,8 @@ class slurpy():
             file = url.split('/')[-1].split('.tar.gz')[0]
             if not self.opts.force:
                 if os.path.exists(file + '.tar.gz') or os.path.exists(file):
-                    self.write("slurpy: file exists. pass -f to force this",
-                               "operation")
+                    self.write_ln("file exists. pass -f to force this",
+                               "operation", type="error")
                     sys.exit()
 
             # download .tar.gz
@@ -179,7 +190,8 @@ class slurpy():
                 fp.extractall()
                 fp.close()
             except:
-                self.write("slurpy: error extracting archive %s.tar.gz" % file)
+                self.write_ln("error extracting archive %s.tar.gz" % file, 
+                           type="error")
                 os.unlink(file + '.tar.gz')
                 sys.exit()
 
@@ -217,7 +229,7 @@ class slurpy():
         for arg in self.args:
             json = json_decode(self.INFO_URL + arg)
             if json['type'] == 'error':
-                self.write("slurpy:", json['results'].lower())
+                self.write_ln(json['results'].lower(), type="error")
                 sys.exit()
             pkg = json['results']
             if pkg[self.LOCATION] == 3:
@@ -257,7 +269,7 @@ class slurpy():
             json = json_decode(self.SEARCH_URL + arg)
             if json['type'] == 'error':
                 if json['results'].lower() != "no results found":
-                    self.write("slurpy:", json['results'].lower())
+                    self.write_ln(json['results'].lower(), type="error")
             else:
                 pkgs.extend(json['results'])
 
@@ -277,7 +289,7 @@ class slurpy():
 
         for pkg in spkgs:
             if self.opts.quiet:
-                self.write(pkg[self.NAME])
+                self.write_ln(pkg[self.NAME], color="white", bold=True)
             else:
                 if pkg[self.LOCATION] == '3':
                     repo = "community"
@@ -285,16 +297,24 @@ class slurpy():
                 else:
                     repo = "aur"
 
-                self.write("%s/%s %s" % (repo, pkg[self.NAME], 
-                                         pkg[self.VERSION]))
-                self.write("    ", strip_slashes(pkg[self.DESCRIPTION]))
+                self.write(repo, color="magenta", bold=True)
+                self.write("/")
+                self.write(pkg[self.NAME], color="white", bold=True)
+                if pkg[self.OUT_OF_DATE] == '0':
+                    self.write_ln(" " + pkg[self.VERSION], color="green",
+                                  bold=True)
+                else:
+                    self.write_ln(" " + pkg[self.VERSION], color="red",
+                                  bold=True)
+
+                self.write_ln("    ", strip_slashes(pkg[self.DESCRIPTION]))
 
     def update(self):
         """Checks all explicitly installed packages for updates in the AUR"""
         updates = []
 
         if not self.opts.quiet:
-            self.write("checking for package updates...")
+            self.write_ln("checking for package updates...")
 
         fp = os.popen("pacman -Qm")
         for ln in fp.readlines():
@@ -329,10 +349,11 @@ class slurpy():
                 elif r_pkg.search(pkg_name):
                     scm_installed = False
                 else:
-                    self.write("slurpy: failed to detect pkg version type. ",
-                            "please contact my developer with the below info")
-                    self.write("pkg_name:", name, pkg_name)
-                    self.write("pkg_version:", version)
+                    self.write_ln("failed to detect pkg version type. ",
+                              "please contact my developer with the below info",
+                              type="error")
+                    self.write_ln("pkg_name:", name, pkg_name)
+                    self.write_ln("pkg_version:", version)
                     sys.exit()
                 
                 if r_scm.search(name + "-" + version):
@@ -366,25 +387,57 @@ class slurpy():
                         return False
 
     def write(self, *args, **kwargs):
-        """print wrapper: can be overridden to easily provide colored ouput
+        """print wrapper: provides an easy way to print colors and templates
 
-        optional kwargs: preserve = True/False - if true, keep output on end of
-                                    the line, rather than appending a newline
+        optional kwargs: color = one of the 9 ansi colors:
+                                 gray, red, green, yellow, blue, magenta,
+                                 cyan, white, crimson
+                         bold = True/False
+                         type = templates defined as follows:
+                            "error", prepends bolded red "error: " to str
+
         """
-        for str in args:
-            print str,
 
-        if 'preserve' in kwargs:
-            if not kwargs['preserve']:
-                print
+        str = ' '.join(args)
+
+        for arg in ['color', 'bold', 'type']:
+            if arg not in kwargs:
+                kwargs[arg] = False
+
+        if kwargs['color']:
+            if kwargs['bold']:
+                str = self.colorfy(str, kwargs['color'], True)
+            else:
+                str = self.colorfy(str, kwargs['color'])
+
+        if kwargs['type'] == "error":
+            str = self.colorfy("error: ", "red", True) + str
+
+        sys.stdout.write(str)
+
+    def write_ln(self, *args, **kwargs):
+        self.write(*args, **kwargs)
+        self.write("\n")
+
+    def colorfy(self, str, col, bold=False):
+        """Returns <str> with the ansi escape codes wrapping the string"""
+        colors = {"gray": "0", "red": "1", "green": "2",
+                  "yellow": "3", "blue": "4", "magenta": "5",
+                  "cyan": "6", "white": "7", "crimson": "8"}
+
+        if not self.opts.color or col not in colors:
+            return str
+        elif bold:
+            return "\033[1;3" + colors[col] + "m" + str + "\033[1;m"
         else:
-            print
+            return "\033[3" + colors[col] + "m" + str + "\033[1;m"
 
 # main processing 
 if __name__ == '__main__':
 
     parser = OptionParser(version="%prog 0.1.1", conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
+    parser.add_option('-c', '--color', action='store_true')
     parser.add_option('-f', '--force', action='store_true')
     parser.add_option('-h', '--help', action='store_true')
     parser.add_option('-i', '--info', action='store_true')
@@ -401,18 +454,19 @@ if __name__ == '__main__':
             updates.append(pkg) 
         slurp.args = updates
 
-        slurp.write("downloading updates...")
-        display_result(*slurp.download())
+        slurp.write_ln("downloading updates...")
+        slurp.display_result(*slurp.download())
 
     elif slurp.opts.download:
         try:
             if slurp.opts.target_dir is not None:
                 os.chdir(slurp.opts.target_dir)
         except OSError:
-            slurp.write("slurpy: target dir does not exist or is not a",
-                        "directory\n")
+            slurp.write_ln("target dir does not exist or is not a",
+                        "directory", type="error")
+
             sys.exit()
-        display_result(*slurp.download())
+        slurp.display_result(*slurp.download())
 
     elif slurp.opts.info:
         slurp.info()
@@ -423,7 +477,8 @@ if __name__ == '__main__':
             if slurp.opts.quiet:
                 slurp.write(pkg)
             elif not slurp.opts.download:
-                slurp.write("- %s %s" % (pkg, version))
+                slurp.write(pkg, color="white", bold=True, preserve=True)
+                slurp.write(" " + version, color="green", bold=True)
     else:
         slurp.write(__doc__)
 
