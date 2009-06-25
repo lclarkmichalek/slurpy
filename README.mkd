@@ -1,0 +1,29 @@
+# Preamble
+slurpy is another [AUR][0] helper script written in Python.  I've been an advocate of [arson][1] since it's inception but the fact that it's written in Ruby always bugged me.  Since I am much more comfortable in Python I decided to write a port.  The arson code base changed a lot as I worked on this and I decided to continue the direction I was heading rather than rewriting the port to match. slurpy is where I ended up.
+
+## What it is
+
+ * Faster searching, downloading, retrieving info, and checking for updates for AUR packages.
+ * Dependency resolution for packages in the AUR.
+ * Written in Python with only one optional dependency - [python-cjson][2] (makes processing faster with large result sets).
+ * Colorized output based on pacman-color's color.conf.  Color is disabled by default and must be enabled with -c|--color.
+
+## What it isn't
+
+ * slurpy is not a way to automate the download-build-install process.  It is only a means to manage PKGBUILDS.  If you are looking for an automatic installer, check out [yaourt][3].
+ * slurpy is not a prettyfier.  Output is mostly modeled after pacman output to keep a uniform feel across tools.  
+
+## What it will be
+
+ * The only planned feature that is not implemented is integration with [ABS][4].
+
+## Other thoughts
+
+ * I've tested this quite a bit, but I know there are many bugs I've missed.  I could use a few testers giving quality feedback.  If you've got a minute, check it out and [let me know][5] what you think.
+
+[0]: http://aur.archlinux.org
+[1]: http://evaryont.github.com/arson
+[2]: http://aur.archlinux.org/packages.php?ID=16453
+[3]: http://archlinux.fr/yaourt-en
+[4]: http://wiki.archlinux.org/index.php/ABS
+[5]: http://rsontech.net/contact/
