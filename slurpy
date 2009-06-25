@@ -30,8 +30,8 @@
   -s, --search            search for PACKAGE(s)
   -u, --update            check explicitly installed packages for available
                           updates 
-                             if passed with --download flag(s), performed
-                             download for each package with an available update
+                             if passed with --download flag(s), perform download 
+                             operation for each package with an available update
  options:
   -c, --color             use colored output
   -q, --quiet             show only package names in search/update results
