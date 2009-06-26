@@ -535,7 +535,7 @@ class SlurpyAUR(Slurpy):
 # main processing 
 if __name__ == '__main__':
 
-    parser = OptionParser(version="%prog 0.1.1", conflict_handler="resolve")
+    parser = OptionParser(version="%prog 0.2.1", conflict_handler="resolve")
     parser.add_option('-a', '--abs', action='store_true')
     parser.add_option('-d', '--download', action='count')
     parser.add_option('-c', '--color', action='store_true')
