@@ -344,7 +344,7 @@ class SlurpyAUR(Slurpy):
             self.write("Category        : ")
             self.write_ln(self.CATEGORIES[int(pkg[self.CATEGORY])])
             self.write("Licenses        : ")
-            self.write_ln(pkg[self.LICENSE])
+            self.write_ln(strip_slashes(pkg[self.LICENSE]))
             self.write("Number of Votes : ")
             self.write_ln(pkg[self.VOTES])
             self.write("Out of Date     : ")
