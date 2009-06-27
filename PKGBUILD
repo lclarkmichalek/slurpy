@@ -1,6 +1,6 @@
 # Contributor: Randy Morris <randy rsontech net>
 pkgname=slurpy-git
-pkgver=20090625
+pkgver=20090627
 pkgrel=1
 pkgdesc="An AUR search/download/update helper in Python"
 arch=('i686' 'x86_64')
@@ -19,11 +19,12 @@ build() {
   cd ${srcdir}
   msg "Connecting to github.com GIT server...."
 
-  if [ -d ${srcdir}/$_gitname ] ; then
-		cd $_gitname && git pull origin
+  if [ -d ${srcdir}/${_gitname} ] ; then
+		cd ${_gitname} && git pull origin
 		msg "The local files are updated."
+		cd ${srcdir}
   else
-		git clone $_gitroot
+		git clone ${_gitroot}
   fi
 
   msg "GIT checkout done or server timeout"

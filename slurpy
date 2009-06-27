@@ -447,7 +447,7 @@ class SlurpyAUR(Slurpy):
                 else:
                     self.write_ln(" " + pkg[self.VERSION], color="red")
 
-                self.write_ln("    ", strip_slashes(pkg[self.DESCRIPTION]))
+                self.write_ln("   ", strip_slashes(pkg[self.DESCRIPTION]))
 
     def update(self):
         """Checks all explicitly installed packages for updates in the AUR"""
