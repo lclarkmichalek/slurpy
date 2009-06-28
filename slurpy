@@ -308,7 +308,7 @@ class SlurpyAUR(Slurpy):
                     repodeps.extend(deps)
 
         # remove dups
-        repodeps = set(repodeps).union(set(repodeps))
+        repodeps = list(set(repodeps))
 
         return dledpkgs, repodeps
 
@@ -386,8 +386,8 @@ class SlurpyAUR(Slurpy):
             except OSError:
                 self.write_ln("target dir does not exist or is not a",
                             "directory", type="error")
-
                 sys.exit()
+
             self.display_result(*self.download())
 
         elif self.opts.info:
