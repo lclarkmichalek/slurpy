@@ -41,6 +41,7 @@
   -h, --help              show this message
       --version           show version information"""
 
+import commands
 import glob
 import os
 import re
@@ -79,6 +80,10 @@ class Slurpy():
     """
 
     COLOR_CONF = "/etc/pacman.d/color.conf"
+    PACMAN_CACHE = "/var/lib/pacman/local"
+    PACMAN_CONF = "/etc/pacman.conf"
+    PACMAN_REPOS = ['core', 'extra', 'community']
+    PACMAN_SYNC = "/var/lib/pacman/sync/"
 
     def __init__(self, opts, args):
         """Sets up colors and sets opts and args for the class"""
@@ -109,6 +114,41 @@ class Slurpy():
                 set = re.sub("intensive\s*", "bold", set)
                 self.colors[color] = set
 
+        # enable testing repo if enabled on the machine
+        try:
+            fp = open(self.PACMAN_CONF, 'r')
+            conf = fp.read()
+            fp.close()
+        except IOError:
+            if self.opts.verbose:
+                self.write_ln("error reading pacman.conf, testing repo will"
+                              "remain disabled", type="warning")
+            return
+
+        if re.search('^\s*\[testing\]', conf, re.M):
+            self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
+            self.write_ln("testing repo enabled", type="info")
+
+    def colorfy(self, str, col):
+        """Returns <str> with the ansi escape codes wrapping the string"""
+        colors = {"black":      "0",  "gray":           "9",
+                  "red":        "1",  "boldred":        "10",
+                  "green":      "2",  "boldgreen":      "11",
+                  "yellow":     "3",  "boldyellow":     "12",
+                  "blue":       "4",  "boldblue":       "13",
+                  "magenta":    "5",  "boldmagenta":    "14",
+                  "cyan":       "6",  "boldcyan":       "15",
+                  "white":      "7",  "boldwhite":      "16",
+                  "foreground": "8",  "boldforeground": "17"}
+
+        if not self.opts.color or col not in colors:
+            return str
+        elif self.colors[col][:4] == "bold":
+            col = self.colors[col][4:]
+            return "\033[1;3" + colors[col] + "m" + str + "\033[1;m"
+        else:
+            return "\033[3" + colors[self.colors[col]] + "m" + str + "\033[1;m"
+
     def download(self):
         """Must be overridden.
         
@@ -116,6 +156,17 @@ class Slurpy():
         pointless.
         """
         pass
+
+    def in_sync_db(self, name): 
+        """Checks if <name> exists in the local syncdb for <repo>
+
+        Returns true if found, otherwise false
+        """
+        for repo in self.PACMAN_REPOS:
+            syncd = self.PACMAN_SYNC + repo
+            if glob.glob(syncd + "/" + name + "-*"):
+                return repo
+        return False
 
     def run(self):
         """Must be overridden.
@@ -163,25 +214,94 @@ class Slurpy():
         self.write(*args, **kwargs)
         self.write("\n")
 
-    def colorfy(self, str, col):
-        """Returns <str> with the ansi escape codes wrapping the string"""
-        colors = {"black":      "0",  "gray":           "9",
-                  "red":        "1",  "boldred":        "10",
-                  "green":      "2",  "boldgreen":      "11",
-                  "yellow":     "3",  "boldyellow":     "12",
-                  "blue":       "4",  "boldblue":       "13",
-                  "magenta":    "5",  "boldmagenta":    "14",
-                  "cyan":       "6",  "boldcyan":       "15",
-                  "white":      "7",  "boldwhite":      "16",
-                  "foreground": "8",  "boldforeground": "17"}
+class SlurpyABS(Slurpy):
 
-        if not self.opts.color or col not in colors:
-            return str
-        elif self.colors[col][:4] == "bold":
-            col = self.colors[col][4:]
-            return "\033[1;3" + colors[col] + "m" + str + "\033[1;m"
-        else:
-            return "\033[3" + colors[self.colors[col]] + "m" + str + "\033[1;m"
+    """Does all ABS work"""
+
+    ABSBASE = "http://repos.archlinux.org/"
+
+    def __init__(self, opts, args):
+        self.arch = commands.getoutput('uname -m')
+        Slurpy.__init__(self, opts, args)
+
+    def run(self):
+        if self.opts.download:
+            self.display_result(self.download())
+
+    def display_result(self, pkgs):
+        if len(pkgs) == 1:
+            self.write(pkgs[0], color="white")
+            self.write(" downloaded to ")
+            self.write_ln(os.getcwd(), color="green")
+        elif len(pkgs) > 1:
+            self.write("packages downloaded to ")
+            self.write(os.getcwd(), color="green")
+            self.write_ln(":")
+            for pkg in pkgs:
+                self.write_ln("   ", pkg, color="white")
+
+    def download(self):            
+        pkgs = [] # hold all packages downloaded
+        for arg in self.args:
+            repo = self.in_sync_db(arg) 
+            if repo != False:
+                # arg found in local syncdb
+                # safe to assume pkg will be in abs for $ARCH
+                html = urllib.urlopen(self.ABSBASE + "viewvc.cgi/" + arg +
+                                      "/repos/" + repo + "-" + self.arch).read()
+                matches = re.findall('/.+\?revision=\d+', html, re.U)
+                if len(matches) < 1:
+                    self.write_ln("no revision links found on abs page.",
+                                  "please contact my developer with this error
+                                  and the below info", type="error")
+                    self.write_ln("arg:", arg)
+                    sys.exit()
+
+                files = []
+                for match in matches:
+                    files.append({'filename':re.sub('.*/(.+?)\?revision=.*', 
+                                  '\\1', match), 'url': self.ABSBASE + match})
+
+                try:
+                    if self.opts.target_dir is not None:
+                        os.chdir(self.opts.target_dir)
+                    else:
+                        self.opts.target_dir = os.getcwd()
+                except OSError:
+                    self.write_ln("target dir does not exist or is not a",
+                                "directory", type="error")
+                    sys.exit()
+
+
+                if os.path.exists('./' + arg):
+                    if not self.opts.force:
+                        self.write_ln("package directory exists. pass -f to"
+                                      "force this operation", type="error")
+                        sys.exit()
+                else:
+                    try:
+                        os.makedirs('./' + arg)
+                    except OSError:
+                        self.write_ln("problem creating directory",
+                                      type="error")
+                        sys.exit()
+                    
+                # if we get here, this directory should exist one way or another
+                # and we should be able to forcefully create any files under
+                # this directory
+                os.chdir('./' + arg)
+
+                for file in files:
+                    fp = open(file['filename'], 'w')
+                    fp.write(urllib.urlopen(file['url']).read())
+                    fp.close()
+
+                pkgs.append(arg)
+                os.chdir(self.opts.target_dir)
+            else:
+                self.write_ln(arg, "not found in pacman repos", type="info")
+
+        return pkgs
 
 class SlurpyAUR(Slurpy):
 
@@ -190,8 +310,6 @@ class SlurpyAUR(Slurpy):
     DOWNLOAD_URL = "http://aur.archlinux.org"
     INFO_URL = "http://aur.archlinux.org/rpc.php?type=info&arg="
     SEARCH_URL = "http://aur.archlinux.org/rpc.php?type=search&arg="
-    PACMAN_CACHE = "/var/lib/pacman/local"
-    PACMAN_SYNC = "/var/lib/pacman/sync/"
 
     # json constants
     ID = "ID"
@@ -246,8 +364,7 @@ class SlurpyAUR(Slurpy):
             if arg in ignore: 
                 continue
 
-            if (self.in_sync_db("core", arg) or self.in_sync_db("extra", arg) 
-                    or self.in_sync_db("community", arg)):
+            if self.in_sync_db(arg) != False:
                 repodeps.append(arg)
                 continue
 
@@ -354,16 +471,6 @@ class SlurpyAUR(Slurpy):
                 self.write_ln(out_of_date, color="green")
             self.write("Description     : ")
             self.write_ln(strip_slashes(pkg[self.DESCRIPTION]), "\n")
-
-    def in_sync_db(self, repo, name): 
-        """Checks if <name> exists in the local syncdb for <repo>
-
-        Returns true if found, otherwise false
-        """
-        syncd = self.PACMAN_SYNC + repo
-        if glob.glob(syncd + "/" + name + "-*"):
-            return True
-        return False
 
     def run(self):
         """Main processing for SlurpyAUR.
@@ -552,7 +659,7 @@ if __name__ == '__main__':
 
     if opts.abs:
         # future
-        pass
+        SlurpyABS(opts, args).run()
     else:
         SlurpyAUR(opts, args).run()
 

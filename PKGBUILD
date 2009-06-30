@@ -17,17 +17,17 @@ _gitroot="git://github.com/rson/slurpy.git"
 _gitname="slurpy"
 build() {
   msg "Connecting to github.com GIT server...."
-
+ 
   if [ -d ${srcdir}/${_gitname} ] ; then
-		cd ${_gitname} && git pull origin
-		msg "The local files are updated."
+    cd ${_gitname} && git pull origin
+    msg "The local files are updated."
   else
-		git clone ${_gitroot}
+    git clone ${_gitroot}
   fi
-
+ 
   msg "GIT checkout done or server timeout"
   msg "Starting make..."
-
+ 
   cd ${srcdir}
   install -D -m755 ${_gitname}/${_gitname} ${pkgdir}/usr/bin/${_gitname}
 }
