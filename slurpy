@@ -371,16 +371,26 @@ class SlurpyAUR(Slurpy):
         Handles all function dispatching and pre/post result output.
         """
         if self.opts.update and self.opts.download:
-            updates = []
+            updates = [] # holds all available updates
+
+            try:
+                if self.opts.target_dir is not None:
+                    os.chdir(self.opts.target_dir)
+            except OSError:
+                self.write_ln("target dir does not exist or is not a",
+                            "directory", type="error")
+                sys.exit()
+
             for pkg, version in self.update():
                 updates.append(pkg) 
 
-            if updates = []:
+            if updates == []:
                 self.write("no updates available")
                 return
 
             self.args = updates
             self.write_ln("downloading updates...")
+
             self.display_result(*self.download())
 
         elif self.opts.download:
