@@ -385,7 +385,7 @@ class SlurpyAUR(Slurpy):
                 updates.append(pkg) 
 
             if updates == []:
-                self.write("no updates available")
+                self.write_ln("no updates available")
                 return
 
             self.args = updates
