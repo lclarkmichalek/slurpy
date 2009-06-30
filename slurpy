@@ -252,8 +252,8 @@ class SlurpyABS(Slurpy):
                 matches = re.findall('/.+\?revision=\d+', html, re.U)
                 if len(matches) < 1:
                     self.write_ln("no revision links found on abs page.",
-                                  "please contact my developer with this error
-                                  and the below info", type="error")
+                                  "please contact my developer with this error",
+                                  "and the below info", type="error")
                     self.write_ln("arg:", arg)
                     sys.exit()
 
