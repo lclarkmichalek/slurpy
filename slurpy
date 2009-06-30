@@ -241,8 +241,18 @@ class SlurpyABS(Slurpy):
 
         Handles all function dispatching and pre/post result output.
         """
-        if self.opts.download:
-            self.display_result(self.download())
+
+        # this is commented out for now because download is the only operation
+        # available for the abs
+
+        #if not self.opts.download:
+        #    self.write("Please specifiy an operation", type="error")
+        #sys.exit()
+
+        #if self.opts.download:
+        #    self.display_result(self.download())
+
+        self.display_result(self.download())
 
     def display_result(self, pkgs):
         """Print a nicely formated result of <pkgs>"""
@@ -261,7 +271,10 @@ class SlurpyABS(Slurpy):
     def download(self):
         """Scrape ABS webpage and download latest revision"""
 
-        pkgs = [] # hold all packages downloaded
+        # this is incredibly slow at this point, more investigation needs to be
+        # done to see if i'm doing anything dumb that slows it down
+
+        pkgs = [] # holds all packages downloaded
         for arg in self.args:
             repo = self.in_sync_db(arg) 
             if repo != False:
@@ -287,8 +300,14 @@ class SlurpyABS(Slurpy):
 
                 files = []
                 for match in matches:
+                    if repo == "community":
+                        rest = re.sub('(.*)\?(view=markup&amp;)?(.*)', 
+                                      '\\1?root=community&pathrev=CURRENT&\\3', 
+                                      match)
+                    else:
+                        rest = match
                     files.append({'filename':re.sub('.*/(.+?)\?.*', 
-                                  '\\1', match), 'url': self.ABS_BASE + match})
+                                  '\\1', match), 'url': self.ABS_BASE + rest })
 
                 try:
                     if self.opts.target_dir is not None:
