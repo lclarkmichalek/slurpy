@@ -374,8 +374,12 @@ class SlurpyAUR(Slurpy):
             updates = []
             for pkg, version in self.update():
                 updates.append(pkg) 
-            self.args = updates
 
+            if updates = []:
+                self.write("no updates available")
+                return
+
+            self.args = updates
             self.write_ln("downloading updates...")
             self.display_result(*self.download())
 
