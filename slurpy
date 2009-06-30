@@ -21,8 +21,13 @@
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-06-24 16:03
 
-"""usage: slurpy [options] <operation> PACKAGE [PACKAGE2..] 
- operations:              
+"""Usage: slurpy [options] <mode> <operation> PACKAGE [PACKAGE2..] 
+
+ Modes:
+      --abs               interface only with ABS via viewvc.cgi
+      --aur (default)     interface only with AUR via RPC
+
+ AUR operations:              
   -d, --download          download PACKAGE(s)
                              if passed twice will also download dependencies
                              from the AUR
@@ -32,8 +37,13 @@
                           updates 
                              if passed with --download flag(s), perform download
                              operation for each package with an available update
- options:
+
+ ABS operatiopns:
+  -d, --download          download PACKAGE(s)
+
+ General options:
   -c, --color             use colored output
+  -f, --force             overwrite existing files when dowloading
   -q, --quiet             show only package names in search/update results
   -t DIR, --save-to=DIR   target directory where files will be downloaded
   -v, --verbose           show warning and info messages
@@ -103,7 +113,7 @@ class Slurpy():
             fp.close()
         except IOError:
             if self.opts.verbose:
-                self.write_ln("error reading color.conf, using default colors",
+                self.write_ln("Error reading color.conf, using default colors",
                               type="warning")
             return
 
@@ -121,13 +131,13 @@ class Slurpy():
             fp.close()
         except IOError:
             if self.opts.verbose:
-                self.write_ln("error reading pacman.conf, testing repo will"
+                self.write_ln("Error reading pacman.conf, testing repo will"
                               "remain disabled", type="warning")
             return
 
         if re.search('^\s*\[testing\]', conf, re.M):
             self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
-            self.write_ln("testing repo enabled", type="info")
+            self.write_ln("Testing repo enabled", type="info")
 
     def colorfy(self, str, col):
         """Returns <str> with the ansi escape codes wrapping the string"""
@@ -223,6 +233,8 @@ class SlurpyABS(Slurpy):
     def __init__(self, opts, args):
         self.arch = commands.getoutput('uname -m')
         Slurpy.__init__(self, opts, args)
+        self.write_ln("Enabling ABS. This feature is experimental and needs",
+                      "much more testing.", type="warning")
 
     def run(self):
         """Main processing for SlurpyABS.
@@ -240,7 +252,7 @@ class SlurpyABS(Slurpy):
             self.write(" downloaded to ")
             self.write_ln(os.getcwd(), color="green")
         elif len(pkgs) > 1:
-            self.write("packages downloaded to ")
+            self.write("Packages downloaded to ")
             self.write(os.getcwd(), color="green")
             self.write_ln(":")
             for pkg in pkgs:
@@ -253,13 +265,21 @@ class SlurpyABS(Slurpy):
         for arg in self.args:
             repo = self.in_sync_db(arg) 
             if repo != False:
+                if repo == "community":
+                    category = SlurpyAUR(self.opts, []).get_category(arg)
+                    url = self.ABS_BASE + "viewvc.cgi/community/" + category +\
+                            "/" + arg + "/?root=community&pathrev=CURRENT"
+                else:
+                    url = self.ABS_BASE + "viewvc.cgi/" + arg + "/repos/" +\
+                            repo + "-" + self.arch
+
                 # arg found in local syncdb
                 # safe to assume pkg will be in abs for $ARCH
-                html = urllib.urlopen(self.ABS_BASE + "viewvc.cgi/" + arg +
-                                      "/repos/" + repo + "-" + self.arch).read()
-                matches = re.findall('/.+\?revision=\d+', html, re.U)
+                html = urllib.urlopen(url).read()
+                matches = re.findall('/.+/'+arg+'/.+revision=[\d.]+', html, 
+                                     re.U)
                 if len(matches) < 1:
-                    self.write_ln("no revision links found on abs page.",
+                    self.write_ln("No revision links found on abs page.",
                                   "please contact my developer with this error",
                                   "and the below info", type="error")
                     self.write_ln("arg:", arg)
@@ -267,7 +287,7 @@ class SlurpyABS(Slurpy):
 
                 files = []
                 for match in matches:
-                    files.append({'filename':re.sub('.*/(.+?)\?revision=.*', 
+                    files.append({'filename':re.sub('.*/(.+?)\?.*', 
                                   '\\1', match), 'url': self.ABS_BASE + match})
 
                 try:
@@ -276,20 +296,20 @@ class SlurpyABS(Slurpy):
                     else:
                         self.opts.target_dir = os.getcwd()
                 except OSError:
-                    self.write_ln("target dir does not exist or is not a",
+                    self.write_ln("Target dir does not exist or is not a",
                                 "directory", type="error")
                     sys.exit()
 
                 if os.path.exists('./' + arg):
                     if not self.opts.force:
-                        self.write_ln("package directory exists. pass -f to"
+                        self.write_ln("Package directory exists. Pass -f to"
                                       "force this operation", type="error")
                         sys.exit()
                 else:
                     try:
                         os.makedirs('./' + arg)
                     except OSError:
-                        self.write_ln("problem creating directory",
+                        self.write_ln("Problem creating directory",
                                       type="error")
                         sys.exit()
                     
@@ -306,7 +326,7 @@ class SlurpyABS(Slurpy):
                 pkgs.append(arg)
                 os.chdir(self.opts.target_dir)
             else:
-                self.write_ln(arg, "not found in pacman repos", type="info")
+                self.write_ln(arg, "not found in pacman repos")
 
         return pkgs
 
@@ -343,7 +363,7 @@ class SlurpyAUR(Slurpy):
                 self.write(" downloaded to ")
                 self.write_ln(os.getcwd(), color="green")
             else:
-                self.write("packages downloaded to ")
+                self.write("Packages downloaded to ")
                 self.write(os.getcwd(), color="green")
                 self.write_ln(":")
                 for pkg in pkgs:
@@ -354,7 +374,7 @@ class SlurpyAUR(Slurpy):
                 self.write(" is available in ")
                 self.write_ln("pacman repos", color="yellow")
             else:
-                self.write("\ndependencies found in ")
+                self.write("\nDependencies found in ")
                 self.write("pacman repos", color="yellow")
                 self.write_ln(":")
                 for dep in deps:
@@ -378,7 +398,7 @@ class SlurpyAUR(Slurpy):
             json = json_decode(self.INFO_URL + arg)
 
             if json['type'] == 'error':
-                self.write_ln(arg, json['results'].lower(), type="error")
+                self.write_ln(arg, json['results'], type="error")
                 return(dledpkgs, repodeps)
 
             pkg = json['results']
@@ -386,7 +406,7 @@ class SlurpyAUR(Slurpy):
             file = url.split('/')[-1].split('.tar.gz')[0]
             if not self.opts.force:
                 if os.path.exists(file + '.tar.gz') or os.path.exists(file):
-                    self.write_ln("file exists. pass -f to force this",
+                    self.write_ln("File exists. Pass -f to force this",
                                "operation", type="error")
                     sys.exit()
 
@@ -401,7 +421,7 @@ class SlurpyAUR(Slurpy):
                 fp.extractall()
                 fp.close()
             except:
-                self.write_ln("error extracting archive %s.tar.gz" % file, 
+                self.write_ln("Error extracting archive %s.tar.gz" % file, 
                            type="error")
                 os.unlink(file + '.tar.gz')
                 sys.exit()
@@ -436,12 +456,24 @@ class SlurpyAUR(Slurpy):
 
         return dledpkgs, repodeps
 
+    def get_category(self, pkg):
+        """Returns category of <pkg>
+
+        Used by SlurpyABS to determine url for community packages"""
+
+        json = json_decode(self.INFO_URL + pkg)
+        if json['type'] == 'error':
+            self.write_ln(json['results'], type="error")
+            sys.exit()
+        pkg = json['results']
+        return self.CATEGORIES[int(pkg[self.CATEGORY])]
+
     def info(self):
         """Prints all known info about each package in <self.args>"""
         for arg in self.args:
             json = json_decode(self.INFO_URL + arg)
             if json['type'] == 'error':
-                self.write_ln(json['results'].lower(), type="error")
+                self.write_ln(json['results'], type="error")
                 sys.exit()
             pkg = json['results']
             if pkg[self.LOCATION] == 3:
@@ -491,19 +523,20 @@ class SlurpyAUR(Slurpy):
                 if self.opts.target_dir is not None:
                     os.chdir(self.opts.target_dir)
             except OSError:
-                self.write_ln("target dir does not exist or is not a",
+                self.write_ln("Target dir does not exist or is not a",
                             "directory", type="error")
                 sys.exit()
 
             for pkg, version in self.update():
                 updates.append(pkg) 
 
+            updates = []
             if updates == []:
-                self.write_ln("no updates available")
+                self.write_ln("No updates available")
                 return
 
             self.args = updates
-            self.write_ln("downloading updates...")
+            self.write_ln("Downloading updates...")
 
             self.display_result(*self.download())
 
@@ -512,7 +545,7 @@ class SlurpyAUR(Slurpy):
                 if self.opts.target_dir is not None:
                     os.chdir(self.opts.target_dir)
             except OSError:
-                self.write_ln("target dir does not exist or is not a",
+                self.write_ln("Target dir does not exist or is not a",
                             "directory", type="error")
                 sys.exit()
 
@@ -539,7 +572,7 @@ class SlurpyAUR(Slurpy):
             json = json_decode(self.SEARCH_URL + arg)
             if json['type'] == 'error':
                 if json['results'].lower() != "no results found":
-                    self.write_ln(json['results'].lower(), type="error")
+                    self.write_ln(json['results'], type="error")
             else:
                 pkgs.extend(json['results'])
 
@@ -582,7 +615,7 @@ class SlurpyAUR(Slurpy):
         updates = []
 
         if not self.opts.quiet:
-            self.write_ln("checking for package updates... ")
+            self.write_ln("Checking for package updates... ")
 
         fp = os.popen("pacman -Qm")
         for ln in fp.readlines():
@@ -626,9 +659,9 @@ class SlurpyAUR(Slurpy):
                 elif r_pkg.search(pkg_name):
                     scm_installed = False
                 else:
-                    self.write_ln("failed to detect pkg version type. ",
+                    self.write_ln("Failed to detect pkg version type. ",
                                   "please contact my developer with the ",
-                                  "below info", type="error")
+                                  "below info.", type="error")
                     self.write_ln("pkg_name:", name, pkg_name)
                     self.write_ln("pkg_version:", version)
                     sys.exit()
@@ -664,7 +697,8 @@ class SlurpyAUR(Slurpy):
 if __name__ == '__main__':
 
     parser = OptionParser(version="%prog 0.2.1", conflict_handler="resolve")
-    parser.add_option('-a', '--abs', action='store_true')
+    parser.add_option('', '--abs', action='store_true')
+    parser.add_option('', '--aur', action='store_true')
     parser.add_option('-d', '--download', action='count')
     parser.add_option('-c', '--color', action='store_true')
     parser.add_option('-f', '--force', action='store_true')
