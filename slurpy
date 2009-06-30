@@ -218,17 +218,23 @@ class SlurpyABS(Slurpy):
 
     """Does all ABS work"""
 
-    ABSBASE = "http://repos.archlinux.org/"
+    ABS_BASE = "http://repos.archlinux.org/"
 
     def __init__(self, opts, args):
         self.arch = commands.getoutput('uname -m')
         Slurpy.__init__(self, opts, args)
 
     def run(self):
+        """Main processing for SlurpyABS.
+
+        Handles all function dispatching and pre/post result output.
+        """
         if self.opts.download:
             self.display_result(self.download())
 
     def display_result(self, pkgs):
+        """Print a nicely formated result of <pkgs>"""
+
         if len(pkgs) == 1:
             self.write(pkgs[0], color="white")
             self.write(" downloaded to ")
@@ -240,14 +246,16 @@ class SlurpyABS(Slurpy):
             for pkg in pkgs:
                 self.write_ln("   ", pkg, color="white")
 
-    def download(self):            
+    def download(self):
+        """Scrape ABS webpage and download latest revision"""
+
         pkgs = [] # hold all packages downloaded
         for arg in self.args:
             repo = self.in_sync_db(arg) 
             if repo != False:
                 # arg found in local syncdb
                 # safe to assume pkg will be in abs for $ARCH
-                html = urllib.urlopen(self.ABSBASE + "viewvc.cgi/" + arg +
+                html = urllib.urlopen(self.ABS_BASE + "viewvc.cgi/" + arg +
                                       "/repos/" + repo + "-" + self.arch).read()
                 matches = re.findall('/.+\?revision=\d+', html, re.U)
                 if len(matches) < 1:
@@ -260,7 +268,7 @@ class SlurpyABS(Slurpy):
                 files = []
                 for match in matches:
                     files.append({'filename':re.sub('.*/(.+?)\?revision=.*', 
-                                  '\\1', match), 'url': self.ABSBASE + match})
+                                  '\\1', match), 'url': self.ABS_BASE + match})
 
                 try:
                     if self.opts.target_dir is not None:
@@ -271,7 +279,6 @@ class SlurpyABS(Slurpy):
                     self.write_ln("target dir does not exist or is not a",
                                 "directory", type="error")
                     sys.exit()
-
 
                 if os.path.exists('./' + arg):
                     if not self.opts.force:
