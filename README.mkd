@@ -7,12 +7,12 @@ slurpy is another [AUR][0] helper script written in Python.  I've been an advoca
  * Dependency resolution for packages in the AUR.
  * Written in Python with only one optional dependency - [python-cjson][2] (makes processing faster with large result sets).
  * Colorized output based on pacman-color's color.conf.  Color is disabled by default and must be enabled with -c|--color.
- * Easy downloading of package source through the [ABS][4] for packages in the official repo. (Very experimental!!)
+ * Easy downloading of package source through the [ABS][4] for packages in the official repositories. (Very experimental!!)
 
 ## What it isn't
 
  * slurpy is not a way to automate the download-build-install process.  It is only a means to manage PKGBUILDS.  If you are looking for an automatic installer, check out [yaourt][3].
- * slurpy is not a prettyfier.  Output is mostly modeled after pacman output to keep a uniform feel across tools.  
+ * slurpy is not a `prettyfier''.  Output is mostly modeled after pacman output to keep a uniform feel across tools.  
 
 
 ## Other thoughts
