@@ -12,7 +12,7 @@ slurpy is another [AUR][0] helper script written in Python.  I've been an advoca
 ## What it isn't
 
  * slurpy is not a way to automate the download-build-install process.  It is only a means to manage PKGBUILDS.  If you are looking for an automatic installer, check out [yaourt][3].
- * slurpy is not a `prettyfier''.  Output is mostly modeled after pacman output to keep a uniform feel across tools.  
+ * slurpy is not a `prettyfier'.  Output is mostly modeled after pacman output to keep a uniform feel across tools.  
 
 
 ## Other thoughts
