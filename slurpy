@@ -732,7 +732,6 @@ if __name__ == '__main__':
     opts, args =  parser.parse_args()
 
     if opts.abs:
-        # future
         SlurpyABS(opts, args).run()
     else:
         SlurpyAUR(opts, args).run()
