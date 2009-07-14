@@ -1,33 +1,18 @@
 # Contributor: Randy Morris <randy rsontech net>
-pkgname=slurpy-git
-pkgver=20090627
+pkgname=slurpy
+pkgver=1.0.1
 pkgrel=1
 pkgdesc="An AUR search/download/update helper in Python"
 arch=('i686' 'x86_64')
 url="http://rsontech.net/projects/"
 license=('None')
 depends=('python')
-conflicts=('slurpy')
-provides=('slurpy')
 optdepends=('python-cjson: faster processing for large result sets')
-makedepends=('git')
-source=()
-md5sums=()
-_gitroot="git://github.com/rson/slurpy.git"
-_gitname="slurpy"
+conflicts=('slurpy-git')
+provides=('slurpy-git')
+source=(http://github.com/rson/${pkgname}/raw/v${pkgver}/${pkgname})
+md5sums=('fda5b40699dfa40bb09368df1b18f298')
 build() {
-  msg "Connecting to github.com GIT server...."
- 
-  if [ -d ${srcdir}/${_gitname} ] ; then
-    cd ${_gitname} && git pull origin
-    msg "The local files are updated."
-  else
-    git clone ${_gitroot}
-  fi
- 
-  msg "GIT checkout done or server timeout"
-  msg "Starting make..."
- 
   cd ${srcdir}
-  install -D -m755 ${_gitname}/${_gitname} ${pkgdir}/usr/bin/${_gitname}
+  install -D -m755 ${pkgname} ${pkgdir}/usr/bin/${pkgname}
 }
