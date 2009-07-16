@@ -78,6 +78,8 @@ def json_decode(url):
 
 def strip_slashes(str):
     """Remove extraneous backslashes (\) from <str>"""
+    if str is None:
+        return "None"
     return re.sub(r"\\(.)", r"\1", str.encode('UTF-8'))
 
 
