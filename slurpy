@@ -472,6 +472,8 @@ class SlurpyAUR(Slurpy):
 
         # remove dups
         repodeps = list(set(repodeps))
+        repodeps.sort()
+        dledpkgs.sort()
 
         return dledpkgs, repodeps
 
