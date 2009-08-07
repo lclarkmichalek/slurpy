@@ -553,7 +553,6 @@ class SlurpyAUR(Slurpy):
             for pkg, version in self.update():
                 updates.append(pkg) 
 
-            updates = []
             if updates == []:
                 self.write_ln("No updates available")
                 return
