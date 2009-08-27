@@ -39,7 +39,8 @@
   -f, --force             overwrite existing files when dowloading
   -q, --quiet             show only package names in search/update results
   -t DIR, --save-to=DIR   target directory where files will be downloaded
-  -v, --verbose           show warning and info messages
+  -v, --verbose           show info messages
+                             if passed twice will also show debug messages
 
   -h, --help              show this message
       --version           show version information"""
