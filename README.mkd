@@ -7,7 +7,6 @@ slurpy is another [AUR][0] helper script written in Python.  I've been an advoca
  * Dependency resolution for packages in the AUR.
  * Written in Python with only one optional dependency - [python-cjson][2] (makes processing faster with large result sets).
  * Colorized output based on pacman-color's color.conf.  Color is disabled by default and must be enabled with -c|--color.
- * Easy downloading of package source through the [ABS][4] for packages in the official repositories. (Very experimental!!)
 
 ## What it isn't
 
@@ -17,11 +16,10 @@ slurpy is another [AUR][0] helper script written in Python.  I've been an advoca
 
 ## Other thoughts
 
- * I've tested this quite a bit, but I know there are many bugs I've missed.  I could use a few testers giving quality feedback.  If you've got a minute, check it out and [let me know][5] what you think.
+ * I've tested this quite a bit, but I know there are many bugs I've missed.  I could use a few testers giving quality feedback.  If you've got a minute, check it out and [let me know][4] what you think.
 
 [0]: http://aur.archlinux.org
 [1]: http://evaryont.github.com/arson
 [2]: http://aur.archlinux.org/packages.php?ID=16453
 [3]: http://archlinux.fr/yaourt-en
-[4]: http://wiki.archlinux.org/index.php/ABS
-[5]: http://rsontech.net/contact/
+[4]: http://rsontech.net/contact/
