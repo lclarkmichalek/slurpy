@@ -23,11 +23,7 @@
 
 """Usage: slurpy [options] <mode> <operation> PACKAGE [PACKAGE2..] 
 
- Modes:
-      --abs               interface only with ABS via viewvc.cgi
-      --aur (default)     interface only with AUR via RPC
-
- AUR operations:              
+ Operations:              
   -d, --download          download PACKAGE(s)
                              if passed twice will also download dependencies
                              from the AUR
@@ -37,9 +33,6 @@
                           updates 
                              if passed with --download flag(s), perform download
                              operation for each package with an available update
-
- ABS operatiopns:
-  -d, --download          download PACKAGE(s)
 
  General options:
   -c, --color             use colored output
@@ -51,11 +44,9 @@
   -h, --help              show this message
       --version           show version information"""
 
-import commands
 import glob
 import os
 import re
-import string
 import sys
 import urllib
 
@@ -82,278 +73,16 @@ def strip_slashes(str):
         return "None"
     return re.sub(r"\\(.)", r"\1", str.encode('UTF-8'))
 
-
 # class definitions
 class Slurpy():
     
-    """Slurpy base class
-        
-    Defines color and output functions to be used in aur and abs subclasses.
-    """
+    """Main Slurpy class"""
 
     COLOR_CONF = "/etc/pacman.d/color.conf"
     PACMAN_CACHE = "/var/lib/pacman/local"
     PACMAN_CONF = "/etc/pacman.conf"
     PACMAN_REPOS = ['core', 'extra', 'community']
     PACMAN_SYNC = "/var/lib/pacman/sync/"
-
-    def __init__(self, opts, args):
-        """Sets up colors and sets opts and args for the class"""
-        self.opts = opts
-        self.args = args
-
-        # default colors to be used if COLOR_CONF is not readable
-        self.colors = {"red":"boldred", "green":"boldgreen",
-                       "yellow":"boldyellow", "blue":"boldblue",
-                       "magenta":"boldmagenta", "cyan":"boldcyan",
-                       "white":"boldwhite"}
-
-        # read COLOR_CONF to get pacman-color's settings
-        try:
-            fp = open(self.COLOR_CONF, 'r')
-            conf = fp.read()
-            fp.close()
-        except IOError:
-            if self.opts.verbose:
-                self.write_ln("Error reading color.conf, using default colors",
-                              type="warning")
-            return
-
-        for color in self.colors:
-            set = re.findall("^\s*"+color.capitalize()+".*", conf, re.M) 
-            if len(set):
-                set = set[0].split('=')[1].strip()
-                set = re.sub("intensive\s*", "bold", set)
-                self.colors[color] = set
-
-        # enable testing repo if enabled on the machine
-        try:
-            fp = open(self.PACMAN_CONF, 'r')
-            conf = fp.read()
-            fp.close()
-        except IOError:
-            if self.opts.verbose:
-                self.write_ln("Error reading pacman.conf, testing repo will"
-                              "remain disabled", type="warning")
-            return
-
-        if re.search('^\s*\[testing\]', conf, re.M):
-            self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
-            self.write_ln("Testing repo enabled", type="info")
-
-    def colorfy(self, str, col):
-        """Returns <str> with the ansi escape codes wrapping the string"""
-        colors = {"black":      "0",  "gray":           "9",
-                  "red":        "1",  "boldred":        "10",
-                  "green":      "2",  "boldgreen":      "11",
-                  "yellow":     "3",  "boldyellow":     "12",
-                  "blue":       "4",  "boldblue":       "13",
-                  "magenta":    "5",  "boldmagenta":    "14",
-                  "cyan":       "6",  "boldcyan":       "15",
-                  "white":      "7",  "boldwhite":      "16",
-                  "foreground": "8",  "boldforeground": "17"}
-
-        if not self.opts.color or col not in colors:
-            return str
-        elif self.colors[col][:4] == "bold":
-            col = self.colors[col][4:]
-            return "\033[1;3" + colors[col] + "m" + str + "\033[1;m"
-        else:
-            return "\033[3" + colors[self.colors[col]] + "m" + str + "\033[1;m"
-
-    def download(self):
-        """Must be overridden.
-        
-        All subclasses must have at lease a download function or they are 
-        pointless.
-        """
-        pass
-
-    def in_sync_db(self, name): 
-        """Checks if <name> exists in the local syncdb for <repo>
-
-        Returns true if found, otherwise false
-        """
-        for repo in self.PACMAN_REPOS:
-            syncd = self.PACMAN_SYNC + repo
-            if glob.glob(syncd + "/" + name + "-*"):
-                return repo
-        return False
-
-    def run(self):
-        """Must be overridden.
-        
-        All subclasses must have a run method where function dispatching is
-        handled.
-        """
-        pass
-
-    def write(self, *args, **kwargs):
-        """print wrapper: provides an easy way to print colors and templates
-
-        optional kwargs: color = one of the following colors:
-                                 red, green, yellow, blue, magenta, cyan, white
-
-                         type = templates defined as follows:
-                            "info",    prepends white "info: " to str
-                            "debug",   prepends blue "debug: " to str
-                            "warning", prepends yellow "warning: " to str
-                            "error",   prepends red "error: " to str
-        """
-
-        str = ' '.join(args)
-
-        for arg in ['color', 'type']:
-            if arg not in kwargs:
-                kwargs[arg] = False
-
-        if kwargs['color']:
-            str = self.colorfy(str, kwargs['color'])
-
-        # templates
-        if kwargs['type'] == "error":
-            str = self.colorfy("error: ", "red") + str
-        elif kwargs['type'] == "warning":
-            str = self.colorfy("warning: ", "yellow") + str
-        elif kwargs['type'] == "debug":
-            str = self.colorfy("debug: ", "cyan") + str
-        elif kwargs['type'] == "info":
-            str = self.colorfy("info: ", "white") + str
-
-        sys.stdout.write(str)
-
-    def write_ln(self, *args, **kwargs):
-        self.write(*args, **kwargs)
-        self.write("\n")
-
-class SlurpyABS(Slurpy):
-
-    """Does all ABS work"""
-
-    ABS_BASE = "http://repos.archlinux.org/"
-
-    def __init__(self, opts, args):
-        self.arch = commands.getoutput('uname -m')
-        Slurpy.__init__(self, opts, args)
-        self.write_ln("Enabling ABS. This feature is experimental and needs",
-                      "much more testing.", type="warning")
-
-    def run(self):
-        """Main processing for SlurpyABS.
-
-        Handles all function dispatching and pre/post result output.
-        """
-
-        # this is commented out for now because download is the only operation
-        # available for the abs
-
-        #if not self.opts.download:
-        #    self.write("Please specifiy an operation", type="error")
-        #sys.exit()
-
-        #if self.opts.download:
-        #    self.display_result(self.download())
-
-        self.display_result(self.download())
-
-    def display_result(self, pkgs):
-        """Print a nicely formated result of <pkgs>"""
-
-        if len(pkgs) == 1:
-            self.write(pkgs[0], color="white")
-            self.write(" downloaded to ")
-            self.write_ln(os.getcwd(), color="green")
-        elif len(pkgs) > 1:
-            self.write("Packages downloaded to ")
-            self.write(os.getcwd(), color="green")
-            self.write_ln(":")
-            for pkg in pkgs:
-                self.write_ln("   ", pkg, color="white")
-
-    def download(self):
-        """Scrape ABS webpage and download latest revision"""
-
-        # this is incredibly slow at this point, more investigation needs to be
-        # done to see if i'm doing anything dumb that slows it down
-
-        pkgs = [] # holds all packages downloaded
-        for arg in self.args:
-            repo = self.in_sync_db(arg) 
-            if repo != False:
-                if repo == "community":
-                    category = SlurpyAUR(self.opts, []).get_category(arg)
-                    url = self.ABS_BASE + "viewvc.cgi/community/" + category +\
-                            "/" + arg + "/?root=community&pathrev=CURRENT"
-                else:
-                    url = self.ABS_BASE + "viewvc.cgi/" + arg + "/repos/" +\
-                            repo + "-" + self.arch
-
-                # arg found in local syncdb
-                # safe to assume pkg will be in abs for $ARCH
-                html = urllib.urlopen(url).read()
-                matches = re.findall('/.+/'+arg+'/.+revision=[\d.]+', html, 
-                                     re.U)
-                if len(matches) < 1:
-                    self.write_ln("No revision links found on abs page.",
-                                  "please contact my developer with this error",
-                                  "and the below info", type="error")
-                    self.write_ln("arg:", arg)
-                    sys.exit()
-
-                files = []
-                for match in matches:
-                    if repo == "community":
-                        rest = re.sub('(.*)\?(view=markup&amp;)?(.*)', 
-                                      '\\1?root=community&pathrev=CURRENT&\\3', 
-                                      match)
-                    else:
-                        rest = match
-                    files.append({'filename':re.sub('.*/(.+?)\?.*', 
-                                  '\\1', match), 'url': self.ABS_BASE + rest })
-
-                try:
-                    if self.opts.target_dir is not None:
-                        os.chdir(self.opts.target_dir)
-                    else:
-                        self.opts.target_dir = os.getcwd()
-                except OSError:
-                    self.write_ln("Target dir does not exist or is not a",
-                                "directory", type="error")
-                    sys.exit()
-
-                if os.path.exists('./' + arg):
-                    if not self.opts.force:
-                        self.write_ln("Package directory exists. Pass -f to"
-                                      "force this operation", type="error")
-                        sys.exit()
-                else:
-                    try:
-                        os.makedirs('./' + arg)
-                    except OSError:
-                        self.write_ln("Problem creating directory",
-                                      type="error")
-                        sys.exit()
-                    
-                # if we get here, this directory should exist one way or another
-                # and we should be able to forcefully create any files under
-                # this directory
-                os.chdir('./' + arg)
-
-                for file in files:
-                    fp = open(file['filename'], 'w')
-                    fp.write(urllib.urlopen(file['url']).read())
-                    fp.close()
-
-                pkgs.append(arg)
-                os.chdir(self.opts.target_dir)
-            else:
-                self.write_ln(arg, "not found in pacman repos")
-
-        return pkgs
-
-class SlurpyAUR(Slurpy):
-
-    """Does all AUR work"""
 
     DOWNLOAD_URL = "http://aur.archlinux.org"
     INFO_URL = "http://aur.archlinux.org/rpc.php?type=info&arg="
@@ -371,10 +100,72 @@ class SlurpyAUR(Slurpy):
     LICENSE = "License"
     VOTES = "NumVotes"
     OUT_OF_DATE = "OutOfDate"
-    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators", 
-                               "games", "gnome", "i18n", "kde", "lib", 
-                               "modules", "multimedia", "network", "office", 
-                               "science", "system", "x11", "xfce", "kernels"]
+    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators",
+                  "games", "gnome", "i18n", "kde", "lib", "modules",
+                  "multimedia", "network", "office", "science", "system",
+                  "x11", "xfce", "kernels"]
+
+
+    def __init__(self, opts, args):
+        """Sets up colors and sets opts and args for the class"""
+        self.opts = opts
+        self.args = args
+
+        # default colors to be used if COLOR_CONF is not readable
+        self.colors = {"red":"boldred", "green":"boldgreen",
+                       "yellow":"boldyellow", "blue":"boldblue",
+                       "magenta":"boldmagenta", "cyan":"boldcyan",
+                       "white":"boldwhite"}
+
+        # read COLOR_CONF to get pacman-color's settings
+        if self.opts.color:
+            try:
+                file = open(self.COLOR_CONF, 'r')
+                conf = file.read()
+                file.close()
+                for color in self.colors:
+                    col = re.findall("^\s*"+color.capitalize()+".*", conf, re.M) 
+                    if len(col):
+                        col = col[0].split('=')[1].strip()
+                        col = re.sub("intensive\s*", "bold", col)
+                        self.colors[color] = col
+            except IOError:
+                self.write_ln("Error reading color.conf, using default colors",
+                              type="debug")
+
+        # enable testing repo if enabled on the machine
+        try:
+            file = open(self.PACMAN_CONF, 'r')
+            conf = file.read()
+            file.close()
+        except IOError:
+            self.write_ln("Error reading pacman.conf, testing repo will"
+                          "remain disabled", type="info")
+
+        if re.search('^\s*\[testing\]', conf, re.M):
+            self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
+            self.write_ln("Testing repo enabled", type="debug")
+
+    def colorfy(self, string, col):
+        """Returns <string> with the ansi escape codes wrapping the string"""
+        colors = {"black":      "0",  "gray":           "9",
+                  "red":        "1",  "boldred":        "10",
+                  "green":      "2",  "boldgreen":      "11",
+                  "yellow":     "3",  "boldyellow":     "12",
+                  "blue":       "4",  "boldblue":       "13",
+                  "magenta":    "5",  "boldmagenta":    "14",
+                  "cyan":       "6",  "boldcyan":       "15",
+                  "white":      "7",  "boldwhite":      "16",
+                  "foreground": "8",  "boldforeground": "17"}
+
+        if not self.opts.color or col not in colors:
+            return string
+        elif self.colors[col][:4] == "bold":
+            col = self.colors[col][4:]
+            return "\033[1;3" + colors[col] + "m" + string + "\033[1;m"
+        else:
+            return "\033[3" + colors[self.colors[col]] + "m" + string + \
+                    "\033[1;m"
 
     def display_result(self, pkgs, deps):
         """Print a nicely formated result of <pkgs> and <deps>"""
@@ -424,37 +215,51 @@ class SlurpyAUR(Slurpy):
 
             pkg = json['results']
             url = self.DOWNLOAD_URL + strip_slashes(pkg[self.PATH])
-            file = url.split('/')[-1].split('.tar.gz')[0]
+            c_url = self.DOWNLOAD_URL + '/packages/' + arg + '/' + arg + '.tar.gz'
+            if url != c_url:
+                self.write_ln("There might be a problem with this package in "
+                              "the AUR's database.", type="info")
+                self.write_ln("Using constructed url instead.", type="info")
+                url = c_url
+
+            fname = url.split('/')[-1].split('.tar.gz')[0]
             if not self.opts.force:
-                if os.path.exists(file + '.tar.gz') or os.path.exists(file):
-                    self.write_ln("File exists. Pass -f to force this",
-                               "operation", type="error")
+                if os.path.exists(fname + '.tar.gz'):
+                    self.write_ln(os.getcwd() + "/" + fname + ".tar.gz exists.",
+                                  type="error")
+                    self.write_ln("Pass -f to force this operation.")
+                    sys.exit()
+
+                if os.path.exists(fname):
+                    self.write_ln(os.getcwd() + "/" + fname, "exists.",
+                                  type="error")
+                    self.write_ln("Pass -f to force this operation.")
                     sys.exit()
 
             # download .tar.gz
-            fp = open(file + '.tar.gz', 'w')
-            fp.write(urllib.urlopen(url).read())
-            fp.close()
+            file = open(fname + '.tar.gz', 'w')
+            file.write(urllib.urlopen(url).read())
+            file.close()
 
-            # unzip -- per aur guidelines, all files must be .tar.gz'd
+            # unzip -- per aur guidelines, all fnames must be .tar.gz'd
             try:
-                fp = TarFile.open(file + '.tar.gz', 'r:gz')
-                fp.extractall()
-                fp.close()
-            except:
-                self.write_ln("Error extracting archive %s.tar.gz" % file, 
-                           type="error")
-                os.unlink(file + '.tar.gz')
+                file = TarFile.open(fname + '.tar.gz', 'r:gz')
+                file.extractall()
+                file.close()
+            except: 
+                self.write_ln("Error extracting archive %s.tar.gz" % fname,  
+                               type="error")
+                os.unlink(fname + '.tar.gz')
                 sys.exit()
 
-            os.unlink(file + '.tar.gz')
-            dledpkgs.append(file)
+            os.unlink(fname + '.tar.gz')
+            dledpkgs.append(fname)
             
             # download deps
             if self.opts.download > 1:
-                fp = open(file + '/PKGBUILD', 'r')
-                pkgb = fp.read()
-                fp.close()
+                file = open(fname + '/PKGBUILD', 'r')
+                pkgb = file.read()
+                file.close()
 
                 deps = []
                 deptup = re.findall('[^(opt)](make)?depends=\((.*?)\)', 
@@ -465,7 +270,7 @@ class SlurpyAUR(Slurpy):
                         deps.append(dep)
 
                 # download dependencies, but ignore already downloaded pkgs
-                pkgs, deps = SlurpyAUR(self.opts,deps).download(dledpkgs)
+                pkgs, deps = Slurpy(self.opts, deps).download(dledpkgs)
 
                 if pkgs != []:
                     dledpkgs.extend(pkgs)
@@ -479,17 +284,16 @@ class SlurpyAUR(Slurpy):
 
         return dledpkgs, repodeps
 
-    def get_category(self, pkg):
-        """Returns category of <pkg>
+    def in_sync_db(self, name): 
+        """Checks if <name> exists in the local syncdb for <repo>
 
-        Used by SlurpyABS to determine url for community packages"""
-
-        json = json_decode(self.INFO_URL + pkg)
-        if json['type'] == 'error':
-            self.write_ln(json['results'], type="error")
-            sys.exit()
-        pkg = json['results']
-        return self.CATEGORIES[int(pkg[self.CATEGORY])]
+        Returns true if found, otherwise false
+        """
+        for repo in self.PACMAN_REPOS:
+            syncd = self.PACMAN_SYNC + repo
+            if glob.glob(syncd + "/" + name + "-*"):
+                return repo
+        return False
 
     def info(self):
         """Prints all known info about each package in <self.args>"""
@@ -499,10 +303,6 @@ class SlurpyAUR(Slurpy):
                 self.write_ln(json['results'], type="error")
                 sys.exit()
             pkg = json['results']
-            if pkg[self.LOCATION] == 3:
-                repo = "community"
-            else:
-                repo = "aur"
 
             if pkg[self.OUT_OF_DATE] == '0':
                 out_of_date = "No"
@@ -510,7 +310,7 @@ class SlurpyAUR(Slurpy):
                 out_of_date = "Yes"
 
             self.write("Repository      : ")
-            self.write_ln(repo, color="magenta")
+            self.write_ln("aur", color="magenta")
             self.write("Name            : ")
             self.write_ln(pkg[self.NAME], color="white")
             self.write("Version         : ")
@@ -535,7 +335,7 @@ class SlurpyAUR(Slurpy):
             self.write_ln(strip_slashes(pkg[self.DESCRIPTION]), "\n")
 
     def run(self):
-        """Main processing for SlurpyAUR.
+        """Main processing for Slurpy.
 
         Handles all function dispatching and pre/post result output.
         """
@@ -546,8 +346,8 @@ class SlurpyAUR(Slurpy):
                 if self.opts.target_dir is not None:
                     os.chdir(self.opts.target_dir)
             except OSError:
-                self.write_ln("Target dir does not exist or is not a",
-                            "directory", type="error")
+                self.write_ln("Target dir does not exist or is not a"
+                              "directory", type="error")
                 sys.exit()
 
             for pkg, version in self.update():
@@ -558,7 +358,7 @@ class SlurpyAUR(Slurpy):
                 return
 
             self.args = updates
-            self.write_ln("Downloading updates...")
+            self.write_ln("Downloading updates...", type="info")
 
             self.display_result(*self.download())
 
@@ -567,8 +367,8 @@ class SlurpyAUR(Slurpy):
                 if self.opts.target_dir is not None:
                     os.chdir(self.opts.target_dir)
             except OSError:
-                self.write_ln("Target dir does not exist or is not a",
-                            "directory", type="error")
+                self.write_ln("Target dir does not exist or is not a"
+                              "directory", type="error")
                 sys.exit()
 
             self.display_result(*self.download())
@@ -605,9 +405,10 @@ class SlurpyAUR(Slurpy):
         spkgs = sorted(pkgs, key=lambda k: k[self.NAME])
 
         # remove dups -- note: extra list traversal, but imo it's worth it
-        i=0
+        i = 0
         for pkg in spkgs:
-            if pkg == spkgs[i]: continue
+            if pkg == spkgs[i]: 
+                continue
             i += 1
             spkgs[i] = pkg
         del spkgs[i+1:]
@@ -616,13 +417,7 @@ class SlurpyAUR(Slurpy):
             if self.opts.quiet:
                 self.write_ln(pkg[self.NAME], color="white")
             else:
-                if pkg[self.LOCATION] == '3':
-                    repo = "community"
-                    category = ""
-                else:
-                    repo = "aur"
-
-                self.write(repo, color="magenta")
+                self.write("aur", color="magenta")
                 self.write("/")
                 self.write(pkg[self.NAME], color="white")
                 if pkg[self.OUT_OF_DATE] == '0':
@@ -637,10 +432,10 @@ class SlurpyAUR(Slurpy):
         updates = []
 
         if not self.opts.quiet:
-            self.write_ln("Checking for package updates... ")
+            self.write_ln("Checking for package updates... ", type="info")
 
-        fp = os.popen("pacman -Qm")
-        for ln in fp.readlines():
+        file = os.popen("pacman -Qm")
+        for ln in file.readlines():
             name, version = ln[:-1].split(' ')
             pkg = json_decode(self.INFO_URL + name)['results']
             if pkg != "No result found":
@@ -694,7 +489,7 @@ class SlurpyAUR(Slurpy):
                     scm_passed = False
 
                 if scm_passed and scm_installed:
-                    passed_ver =\
+                    passed_ver = \
                         r_scm.search(name + "-" + version).group().split("-")
                     inst_ver = r_scm.search(pkg_name).group().split("-")
 
@@ -715,12 +510,66 @@ class SlurpyAUR(Slurpy):
                     else:
                         return False
 
+    def write(self, *args, **kwargs):
+        """print wrapper: provides an easy way to print colors and templates
+
+        optional kwargs: color = one of the following colors:
+                                 red, green, yellow, blue, magenta, cyan, white
+
+                         type = templates defined as follows:
+                            "info",    prepends white "info: " to str
+                            "debug",   prepends blue "debug: " to str
+                            "warning", prepends yellow "warning: " to str
+                            "error",   prepends red "error: " to str
+        """
+
+        string = ' '.join(args)
+
+        for arg in ['color', 'type']:
+            if arg not in kwargs:
+                kwargs[arg] = False
+
+        if kwargs['color']:
+            string = self.colorfy(string, kwargs['color'])
+
+        # templates
+        # FIXME: the way this currently works is fucking stupid.  The return
+        # code is used by write_ln to determine whether something was printed or
+        # not. I'll fix it eventually.
+        if kwargs['type'] == "error":
+            string = self.colorfy("error: ", "red") + string
+            sys.stdout.write(string)
+            return True
+        elif kwargs['type'] == "warning":
+            string = self.colorfy("warning: ", "yellow") + string
+            sys.stdout.write(string)
+            return True
+        elif kwargs['type'] == "info":
+            string = self.colorfy("info: ", "white") + string
+            if self.opts.verbose > 0:
+                sys.stdout.write(string)
+                return True
+        elif kwargs['type'] == "debug":
+            string = self.colorfy("debug: ", "cyan") + string
+            if self.opts.verbose > 1:
+                sys.stdout.write(string)
+                return True
+        else:
+            sys.stdout.write(string)
+            return True
+
+        return False
+
+    def write_ln(self, *args, **kwargs):
+        """print wrapper: calls self.write() and appends a newline if anything
+        was actually written (due to verbosity level)"""
+        if self.write(*args, **kwargs):
+            self.write("\n")
+
 # main processing 
 if __name__ == '__main__':
 
-    parser = OptionParser(version="%prog 1.0.2", conflict_handler="resolve")
-    parser.add_option('', '--abs', action='store_true')
-    parser.add_option('', '--aur', action='store_true')
+    parser = OptionParser(version="%prog 2.0.0", conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
     parser.add_option('-c', '--color', action='store_true')
     parser.add_option('-f', '--force', action='store_true')
@@ -730,13 +579,8 @@ if __name__ == '__main__':
     parser.add_option('-s', '--search', action='store_true')
     parser.add_option('-t', '--save-to', dest='target_dir', action='store') 
     parser.add_option('-u', '--update', action='store_true')
-    parser.add_option('-v', '--verbose', action='store_true')
+    parser.add_option('-v', '--verbose', action='count')
     
-    opts, args =  parser.parse_args()
-
-    if opts.abs:
-        SlurpyABS(opts, args).run()
-    else:
-        SlurpyAUR(opts, args).run()
+    Slurpy(*parser.parse_args()).run()
 
 # vim:sw=4:ts=4:sts=4:
