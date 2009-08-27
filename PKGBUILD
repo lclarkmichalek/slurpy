@@ -11,7 +11,7 @@ optdepends=('python-cjson: faster processing for large result sets')
 conflicts=('slurpy-git')
 provides=('slurpy-git')
 source=(http://github.com/rson/${pkgname}/raw/v${pkgver}/${pkgname})
-md5sums=('fe9cea02587e89cf05cd4b3df69c33d9')
+md5sums=('0ed19a49383e5c9e8dad95523658c47a')
 build() {
   cd ${srcdir}
   install -D -m755 ${pkgname} ${pkgdir}/usr/bin/${pkgname}
