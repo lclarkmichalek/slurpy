@@ -8,8 +8,9 @@
 #           python
 #
 # optdepends: 
-#           python-cjson - speeds up processing significantly on operations
-#                          with many results
+#           python-cjson -  speeds up processing significantly on operations
+#                           with many results
+#           python-pycurl - enable uploading packages to the AUR
 #
 #
 # Credits: This code started off as a port of the original arson ruby code
@@ -19,18 +20,38 @@
 #          Colin's project can be found at <http://evaryont.github.com/arson>
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2009-06-24 16:03
+# MODIFIED: 2009-08-28 08:10
 
-"""Usage: slurpy [options] <mode> <operation> PACKAGE [PACKAGE2..] 
+import glob
+import os
+import re
+import sys
+import urllib
 
- Operations:              
+from getpass import getpass
+from distutils import version as Version
+from optparse import OptionParser
+from cStringIO import StringIO
+from tarfile import TarFile
+
+try:
+    import cjson as Json
+except ImportError:
+    import json as Json
+
+try:
+    import pycurl
+except ImportError:
+    __doc__ = """Usage: slurpy [options] <operation> PACKAGE [PACKAGE2..]
+
+ Operations:
   -d, --download          download PACKAGE(s)
                              if passed twice will also download dependencies
                              from the AUR
   -i, --info              show info for PACKAGE(s)
   -s, --search            search for PACKAGE(s)
   -u, --update            check explicitly installed packages for available
-                          updates 
+                          updates
                              if passed with --download flag(s), perform download
                              operation for each package with an available update
 
@@ -44,21 +65,42 @@
 
   -h, --help              show this message
       --version           show version information"""
+else:
+    __doc__ = """Usage: slurpy [options] [--sync] <operation> PACKAGE [PACKAGE2..] 
+       slurpy [options] --push FILE1 [FILE2..] 
 
-import glob
-import os
-import re
-import sys
-import urllib
 
-from distutils import version as Version
-from optparse import OptionParser
-from tarfile import TarFile
+ Modes:
+  -S, --sync              Retrieve package(s)/info from the AUR (DEFAULT)
+  -P, --push              Upload a package to the AUR
 
-try:
-    import cjson as Json
-except ImportError:
-    import json as Json
+ Sync Operations:              
+  -d, --download          download PACKAGE(s)
+                             if passed twice will also download dependencies
+                             from the AUR
+  -i, --info              show info for PACKAGE(s)
+  -s, --search            search for PACKAGE(s)
+  -u, --update            check explicitly installed packages for available
+                          updates 
+                             if passed with --download flag(s), perform download
+                             operation for each package with an available update
+
+ Push Options:
+  -C, --category          package category in the AUR
+                             New Package DEFAULT: none
+                             Update DEFAULT: current category in the AUR
+  -U, --user              AUR username
+
+ General options:
+  -c, --color             use colored output
+  -f, --force             overwrite existing files when dowloading
+  -q, --quiet             show only package names in search/update results
+  -t DIR, --save-to=DIR   target directory where files will be downloaded
+  -v, --verbose           show info messages
+                             if passed twice will also show debug messages
+
+  -h, --help              show this message
+      --version           show version information"""
 
 # utility functions
 def json_decode(url):
@@ -80,37 +122,11 @@ class Slurpy():
     """Main Slurpy class"""
 
     COLOR_CONF = "/etc/pacman.d/color.conf"
-    PACMAN_CACHE = "/var/lib/pacman/local"
-    PACMAN_CONF = "/etc/pacman.conf"
-    PACMAN_REPOS = ['core', 'extra', 'community']
-    PACMAN_SYNC = "/var/lib/pacman/sync/"
+    AUR_URL = "http://aur.archlinux.org"
 
-    DOWNLOAD_URL = "http://aur.archlinux.org"
-    INFO_URL = "http://aur.archlinux.org/rpc.php?type=info&arg="
-    SEARCH_URL = "http://aur.archlinux.org/rpc.php?type=search&arg="
-
-    # json constants
-    ID = "ID"
-    NAME = "Name"
-    VERSION = "Version"
-    CATEGORY = "CategoryID"
-    DESCRIPTION = "Description"
-    LOCATION = "LocationID"
-    URL = "URL"
-    PATH = "URLPath"
-    LICENSE = "License"
-    VOTES = "NumVotes"
-    OUT_OF_DATE = "OutOfDate"
-    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators",
-                  "games", "gnome", "i18n", "kde", "lib", "modules",
-                  "multimedia", "network", "office", "science", "system",
-                  "x11", "xfce", "kernels"]
-
-
-    def __init__(self, opts, args):
-        """Sets up colors and sets opts and args for the class"""
+    def __init__(self, opts):
+        """Sets up colors and sets opts for the class"""
         self.opts = opts
-        self.args = args
 
         # default colors to be used if COLOR_CONF is not readable
         self.colors = {"red":"boldred", "green":"boldgreen",
@@ -133,19 +149,7 @@ class Slurpy():
             except IOError:
                 self.write_ln("Error reading color.conf, using default colors",
                               type="debug")
-
-        # enable testing repo if enabled on the machine
-        try:
-            file = open(self.PACMAN_CONF, 'r')
-            conf = file.read()
-            file.close()
-        except IOError:
-            self.write_ln("Error reading pacman.conf, testing repo will"
-                          "remain disabled", type="info")
-
-        if re.search('^\s*\[testing\]', conf, re.M):
-            self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
-            self.write_ln("Testing repo enabled", type="debug")
+            
 
     def colorfy(self, string, col):
         """Returns <string> with the ansi escape codes wrapping the string"""
@@ -167,6 +171,104 @@ class Slurpy():
         else:
             return "\033[3" + colors[self.colors[col]] + "m" + string + \
                     "\033[1;m"
+
+    def write(self, *args, **kwargs):
+        """print wrapper: provides an easy way to print colors and templates
+
+        optional kwargs: color = one of the following colors:
+                                 red, green, yellow, blue, magenta, cyan, white
+
+                         type = templates defined as follows:
+                            "info",    prepends white "info: " to str
+                            "debug",   prepends blue "debug: " to str
+                            "warning", prepends yellow "warning: " to str
+                            "error",   prepends red "error: " to str
+        """
+
+        string = ' '.join(args)
+
+        for arg in ['color', 'type']:
+            if arg not in kwargs:
+                kwargs[arg] = False
+
+        if kwargs['color']:
+            string = self.colorfy(string, kwargs['color'])
+
+        if kwargs['type'] == "error":
+            string = self.colorfy("error: ", "red") + string
+        elif kwargs['type'] == "warning":
+            string = self.colorfy("warning: ", "yellow") + string
+        elif kwargs['type'] == "info":
+            string = self.colorfy("info: ", "magenta") + string
+            if self.opts.verbose > 0:
+                sys.stdout.write(string)
+            return
+        elif kwargs['type'] == "debug":
+            string = self.colorfy("debug: ", "cyan") + string
+            if self.opts.verbose > 1:
+                sys.stdout.write(string)
+            return
+
+        sys.stdout.write(string)
+
+    def write_ln(self, *args, **kwargs):
+        """print wrapper: calls self.write() and appends a newline if anything
+        was actually written (due to verbosity level)"""
+        args = list(args) + ['\n']
+        self.write(*args, **kwargs)
+
+class AURSync(Slurpy):
+
+    """ Handles all pull requests from the AUR """
+
+    PACMAN_CACHE = "/var/lib/pacman/local"
+    PACMAN_CONF = "/etc/pacman.conf"
+    PACMAN_REPOS = ['core', 'extra', 'community']
+    PACMAN_SYNC = "/var/lib/pacman/sync/"
+
+    INFO_URL = "http://aur.archlinux.org/rpc.php?type=info&arg="
+    SEARCH_URL = "http://aur.archlinux.org/rpc.php?type=search&arg="
+
+    # json constants
+    ID = "ID"
+    NAME = "Name"
+    VERSION = "Version"
+    CATEGORY = "CategoryID"
+    DESCRIPTION = "Description"
+    LOCATION = "LocationID"
+    URL = "URL"
+    PATH = "URLPath"
+    LICENSE = "License"
+    VOTES = "NumVotes"
+    OUT_OF_DATE = "OutOfDate"
+    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators",
+                  "games", "gnome", "i18n", "kde", "lib", "modules",
+                  "multimedia", "network", "office", "science", "system",
+                  "x11", "xfce", "kernels"]
+
+
+    def __init__(self, opts, args):
+
+        Slurpy.__init__(self, opts)
+
+        self.args = []
+        
+        # encode white space
+        for arg in args:
+            self.args.append(urllib.quote(arg))
+
+        # enable testing repo if enabled on the machine
+        try:
+            file = open(self.PACMAN_CONF, 'r')
+            conf = file.read()
+            file.close()
+        except IOError:
+            self.write_ln("Error reading pacman.conf, testing repo will"
+                          "remain disabled", type="info")
+
+        if re.search('^\s*\[testing\]', conf, re.M):
+            self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
+            self.write_ln("Testing repo enabled", type="debug")
 
     def display_result(self, pkgs, deps):
         """Print a nicely formated result of <pkgs> and <deps>"""
@@ -215,8 +317,8 @@ class Slurpy():
                 return(dledpkgs, repodeps)
 
             pkg = json['results']
-            url = self.DOWNLOAD_URL + strip_slashes(pkg[self.PATH])
-            c_url = self.DOWNLOAD_URL + '/packages/' + arg + '/' + arg + '.tar.gz'
+            url = self.AUR_URL + strip_slashes(pkg[self.PATH])
+            c_url = self.AUR_URL + '/packages/' + arg + '/' + arg + '.tar.gz'
             if url != c_url:
                 self.write_ln("There might be a problem with this package in "
                               "the AUR's database.", type="info")
@@ -271,7 +373,7 @@ class Slurpy():
                         deps.append(dep)
 
                 # download dependencies, but ignore already downloaded pkgs
-                pkgs, deps = Slurpy(self.opts, deps).download(dledpkgs)
+                pkgs, deps = AURSync(self.opts, deps).download(dledpkgs)
 
                 if pkgs != []:
                     dledpkgs.extend(pkgs)
@@ -336,7 +438,7 @@ class Slurpy():
             self.write_ln(strip_slashes(pkg[self.DESCRIPTION]), "\n")
 
     def run(self):
-        """Main processing for Slurpy.
+        """Main processing for AURSync.
 
         Handles all function dispatching and pre/post result output.
         """
@@ -511,66 +613,107 @@ class Slurpy():
                     else:
                         return False
 
-    def write(self, *args, **kwargs):
-        """print wrapper: provides an easy way to print colors and templates
+class AURPush(Slurpy):
+    
+    """ Handles all push requests to the AUR """
 
-        optional kwargs: color = one of the following colors:
-                                 red, green, yellow, blue, magenta, cyan, white
+    AUR_SUBMIT_URL = "http://aur.archlinux.org/pkgsubmit.php"
 
-                         type = templates defined as follows:
-                            "info",    prepends white "info: " to str
-                            "debug",   prepends blue "debug: " to str
-                            "warning", prepends yellow "warning: " to str
-                            "error",   prepends red "error: " to str
-        """
+    def __init__(self, opts, args):
+        Slurpy.__init__(self, opts)
 
-        string = ' '.join(args)
+        self.args = args
+        self.buffer = StringIO()
+        self.cookiefile = os.environ['HOME'] + "/.slurpy.aurcookie"
 
-        for arg in ['color', 'type']:
-            if arg not in kwargs:
-                kwargs[arg] = False
+        self.curl = pycurl.Curl()
+        self.curl.setopt(pycurl.HTTPHEADER, ["Expect:"])
+        self.curl.setopt(pycurl.COOKIEJAR, self.cookiefile)
+        self.curl.setopt(pycurl.WRITEFUNCTION, self.buffer.write)
+        self.curl.setopt(pycurl.FOLLOWLOCATION, 1)
 
-        if kwargs['color']:
-            string = self.colorfy(string, kwargs['color'])
+    def __del__(self):
+        self.curl.close()
+        if os.path.exists(self.cookiefile):
+            os.unlink(self.cookiefile)
 
-        # templates
-        # FIXME: the way this currently works is fucking stupid.  The return
-        # code is used by write_ln to determine whether something was printed or
-        # not. I'll fix it eventually.
-        if kwargs['type'] == "error":
-            string = self.colorfy("error: ", "red") + string
-            sys.stdout.write(string)
-            return True
-        elif kwargs['type'] == "warning":
-            string = self.colorfy("warning: ", "yellow") + string
-            sys.stdout.write(string)
-            return True
-        elif kwargs['type'] == "info":
-            string = self.colorfy("info: ", "white") + string
-            if self.opts.verbose > 0:
-                sys.stdout.write(string)
-                return True
-        elif kwargs['type'] == "debug":
-            string = self.colorfy("debug: ", "cyan") + string
-            if self.opts.verbose > 1:
-                sys.stdout.write(string)
-                return True
-        else:
-            sys.stdout.write(string)
-            return True
+    def login(self):
+        self.opts.password = getpass('Password: ')
+        data = [
+            ('user', self.opts.user),
+            ('passwd', self.opts.password)]
 
-        return False
+        self.curl.setopt(pycurl.HTTPPOST, data)
+        self.curl.setopt(pycurl.URL, self.AUR_URL)
+        self.curl.perform()
+        
+        # Bad username or password
+        if self.buffer.getvalue().find("Bad username or password") != -1:
+            self.write_ln("Bad username or password. Please try again.", 
+                          type="error")
+            sys.exit()
 
-    def write_ln(self, *args, **kwargs):
-        """print wrapper: calls self.write() and appends a newline if anything
-        was actually written (due to verbosity level)"""
-        if self.write(*args, **kwargs):
-            self.write("\n")
+    def run(self):
+        if opts.category is not None:
+            if opts.category not in AURSync.CATEGORIES:
+                self.write_ln("Category does not exist, please enter one of "
+                              "the following categories:", type="error")
+                for cat in AURSync.CATEGORIES[2:]:
+                    self.write_ln(cat)
+
+                sys.exit()
+
+        self.login()
+        self.upload()
+
+    def upload(self):
+        for arg in self.args:
+            if not os.path.isfile(arg):
+                self.write(arg, "does not exist or is not a file.",
+                           type="error")
+                sys.exit()
+
+            data = [
+                ('pkgsubmit', '1'),
+                ('category', '%s' % AURSync.CATEGORIES.index(self.opts.category)),
+                ('pfile', (pycurl.FORM_FILE, arg))]
+
+            self.curl.setopt(pycurl.HTTPPOST, data)
+            self.curl.setopt(pycurl.URL, self.AUR_SUBMIT_URL)
+
+            self.buffer.truncate(0)
+            try:
+                self.curl.perform()
+            except:
+                self.write_ln("Something is wrong with the selected file.", 
+                              type="error")
+                self.write_ln("If it is a .tar.gz file, try rebuilding it.")
+
+            if self.buffer.getvalue().find("not allowed to overwrite") != -1:
+                self.write(self.opts.user, color="white", type="error")
+                self.write_ln(" does not own this package and can not "
+                              "overwrite these files.")
+            elif self.buffer.getvalue().find("Unknown file format") != -1:
+                self.write_ln("Incorrect file format. Upload must conform to "
+                              "AUR packaging guidelines.", type="error")
+
+            idx = self.buffer.getvalue().find("<span class='f2'>")
+            if idx != -1:
+                pkg = self.buffer.getvalue()[17+idx:]
+
+                idx = pkg.find("</span>")
+                if idx != -1:
+                    pkg = pkg[:idx]
+                    
+                    if pkg is not None:
+                        self.write(pkg, color="white")
+                        self.write_ln(" has been uploaded.")
+            
 
 # main processing 
 if __name__ == '__main__':
 
-    parser = OptionParser(version="%prog 2.0.0", conflict_handler="resolve")
+    parser = OptionParser(version="%prog 2.5.0", conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
     parser.add_option('-c', '--color', action='store_true')
     parser.add_option('-f', '--force', action='store_true')
@@ -581,7 +724,18 @@ if __name__ == '__main__':
     parser.add_option('-t', '--save-to', dest='target_dir', action='store') 
     parser.add_option('-u', '--update', action='store_true')
     parser.add_option('-v', '--verbose', action='count')
-    
-    Slurpy(*parser.parse_args()).run()
+
+    if 'pycurl' in sys.modules:
+        parser.add_option('-C', '--category', action='store', default=None)
+        parser.add_option('-P', '--push', action='store_true', default=False)
+        parser.add_option('-S', '--sync', action='store_true', default=True)
+        parser.add_option('-U', '--user', action='store')
+
+    opts, args = parser.parse_args()
+
+    if opts.push:
+        AURPush(opts, args).run()
+    else:
+        AURSync(opts, args).run()
 
 # vim:sw=4:ts=4:sts=4:
