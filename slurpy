@@ -633,11 +633,15 @@ class AURPush(Slurpy):
         self.curl.setopt(pycurl.FOLLOWLOCATION, 1)
 
     def __del__(self):
+        """ Clean up curl and cookie file """
         self.curl.close()
         if os.path.exists(self.cookiefile):
             os.unlink(self.cookiefile)
 
     def login(self):
+        """ Log in to the AUR web interface with self.opts.user,
+        prompt for password.
+        """
         self.opts.password = getpass('Password: ')
         data = [
             ('user', self.opts.user),
@@ -654,6 +658,7 @@ class AURPush(Slurpy):
             sys.exit()
 
     def run(self):
+        """ Main processing for AURPush """
         if opts.category is not None:
             if opts.category not in AURSync.CATEGORIES:
                 self.write_ln("Category does not exist, please enter one of "
@@ -667,6 +672,8 @@ class AURPush(Slurpy):
         self.upload()
 
     def upload(self):
+        """ Upload files in self.args to the aur """
+
         for arg in self.args:
             if not os.path.isfile(arg):
                 self.write(arg, "does not exist or is not a file.",
@@ -733,7 +740,7 @@ if __name__ == '__main__':
 
     opts, args = parser.parse_args()
 
-    if opts.push:
+    if 'pycurl' in sys.modules and opts.push:
         AURPush(opts, args).run()
     else:
         AURSync(opts, args).run()
