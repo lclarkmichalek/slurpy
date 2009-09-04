@@ -20,7 +20,7 @@
 #          Colin's project can be found at <http://evaryont.github.com/arson>
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2009-08-28 08:10
+# MODIFIED: 2009-09-03 22:05
 
 import glob
 import os
@@ -68,7 +68,6 @@ except ImportError:
 else:
     __doc__ = """Usage: slurpy [options] [--sync] <operation> PACKAGE [PACKAGE2..] 
        slurpy [options] --push FILE1 [FILE2..] 
-
 
  Modes:
   -S, --sync              Retrieve package(s)/info from the AUR (DEFAULT)
@@ -255,7 +254,7 @@ class AURSync(Slurpy):
         
         # encode white space
         for arg in args:
-            self.args.append(urllib.quote(arg))
+            self.args.append(arg.replace(" ", "%20"))
 
         # enable testing repo if enabled on the machine
         try:
