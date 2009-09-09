@@ -20,7 +20,7 @@
 #          Colin's project can be found at <http://evaryont.github.com/arson>
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2009-09-03 22:05
+# MODIFIED: 2009-09-04 17:42
 
 import glob
 import os
@@ -422,6 +422,8 @@ class AURSync(Slurpy):
                 self.write_ln(pkg[self.VERSION], color="green")
             self.write("URL             : ")
             self.write_ln(strip_slashes(pkg[self.URL]), color="cyan")
+            self.write("AUR Page        : ")
+            self.write_ln(self.AUR_URL + '/packages.php?ID=' + pkg[self.ID], color="cyan")
             self.write("Category        : ")
             self.write_ln(self.CATEGORIES[int(pkg[self.CATEGORY])])
             self.write("Licenses        : ")
