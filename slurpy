@@ -735,11 +735,11 @@ if __name__ == '__main__':
     parser.add_option('-t', '--save-to', dest='target_dir', action='store') 
     parser.add_option('-u', '--update', action='store_true')
     parser.add_option('-v', '--verbose', action='count')
+    parser.add_option('-S', '--sync', action='store_true', default=True)
 
     if 'pycurl' in sys.modules:
         parser.add_option('-C', '--category', action='store', default=None)
         parser.add_option('-P', '--push', action='store_true', default=False)
-        parser.add_option('-S', '--sync', action='store_true', default=True)
         parser.add_option('-U', '--user', action='store')
 
     opts, args = parser.parse_args()
