@@ -22,11 +22,15 @@
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-09-04 17:42
 
+VERSION = '2.5.1'
+
 import glob
 import os
 import re
 import sys
+import gzip
 import urllib
+import urllib2
 
 from getpass import getpass
 from distutils import version as Version
@@ -104,10 +108,26 @@ else:
 # utility functions
 def json_decode(url):
     """Open <url> and decode the json response"""
-    try: 
-        return Json.decode(urllib.urlopen(url).read())
+    request = urllib2.Request(url)
+    request.add_header("Accept-encoding", "gzip")
+    request.add_header("User-agent", "slurpy/%s" % VERSION)
+    try:
+        usock = urllib2.urlopen(request)
+        data = usock.read()
+        if usock.headers.get('content-encoding', None) == 'gzip':
+            data = gzip.GzipFile(fileobj=StringIO(data)).read()
+        usock.close()
+    except:
+        ## just rethrow for now
+        raise
+    finally:
+        # clean up
+        del request
+        del usock
+    try:
+        return Json.decode(data)
     except AttributeError:
-        return Json.loads(urllib.urlopen(url).read())
+        return Json.loads(data)
 
 def strip_slashes(str):
     """Remove extraneous backslashes (\) from <str>"""
@@ -723,8 +743,8 @@ class AURPush(Slurpy):
 
 # main processing 
 if __name__ == '__main__':
-
-    parser = OptionParser(version="%prog 2.5.0", conflict_handler="resolve")
+    _version = ' '.join(("%prog",VERSION))
+    parser = OptionParser(version=_version, conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
     parser.add_option('-c', '--color', action='store_true')
     parser.add_option('-f', '--force', action='store_true')
