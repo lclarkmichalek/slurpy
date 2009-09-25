@@ -22,7 +22,7 @@
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-09-04 17:42
 
-VERSION = '2.5.1'
+VERSION = '2.5.2'
 
 import glob
 import os
