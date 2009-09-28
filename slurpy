@@ -150,7 +150,12 @@ def read_config():
         conf = open(home + "/.slurpyrc")
 
     if conf is not None:
-        exec(conf.read())
+        try:
+            exec(conf.read())
+        except SyntaxError:
+            print "error: There is a syntax error in your config file."
+            print "Please correct this and try again."
+            sys.exit(1)
 
     return {
             'color': USE_COLOR,
