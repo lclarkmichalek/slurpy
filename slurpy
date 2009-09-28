@@ -19,10 +19,12 @@
 #
 #          Colin's project can be found at <http://evaryont.github.com/arson>
 #
+#          Contributors: elij <http://monkeyvschicken.net>
+#
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-09-04 17:42
 
-VERSION = '2.5.2'
+VERSION = '2.5.3'
 
 import glob
 import os
@@ -128,6 +130,34 @@ def json_decode(url):
         return Json.decode(data)
     except AttributeError:
         return Json.loads(data)
+
+def read_config():
+    home = os.getenv('HOME')
+    xdg_config_home = os.getenv('XDG_CONFIG_HOME')
+
+    # configuration options, sane defaults
+    AUR_USER = None
+    COOKIE_FILE = "~/.slurpy.aurcookie"
+    TARGET_DIR = "."
+    USE_COLOR = False
+    VERBOSE = 0
+    
+    conf = None
+    if os.path.exists(xdg_config_home + "/slurpy/slurpyrc"):
+        conf = open(xdg_config_home + "/slurpy/slurpyrc")
+    elif os.path.exists(home + "/.slurpyrc"):
+        conf = open(home + "/.slurpyrc")
+
+    if conf is not None:
+        exec(conf.read())
+
+    return {
+            'color': USE_COLOR,
+            'cookie_file': COOKIE_FILE,
+            'target_dir': os.path.expanduser(TARGET_DIR),
+            'user': AUR_USER,
+            'verbose': VERBOSE,
+            }
 
 def strip_slashes(str):
     """Remove extraneous backslashes (\) from <str>"""
@@ -473,8 +503,8 @@ class AURSync(Slurpy):
                 if self.opts.target_dir is not None:
                     os.chdir(self.opts.target_dir)
             except OSError:
-                self.write_ln("Target dir does not exist or is not a"
-                              "directory", type="error")
+                self.write_ln(self.opts.target_dir, "does not exist or is not",
+                              "a directory", type="error")
                 sys.exit()
 
             for pkg, version in self.update():
@@ -494,8 +524,8 @@ class AURSync(Slurpy):
                 if self.opts.target_dir is not None:
                     os.chdir(self.opts.target_dir)
             except OSError:
-                self.write_ln("Target dir does not exist or is not a"
-                              "directory", type="error")
+                self.write_ln(self.opts.target_dir, "does not exist or is not",
+                              "a directory", type="error")
                 sys.exit()
 
             self.display_result(*self.download())
@@ -648,24 +678,26 @@ class AURPush(Slurpy):
 
         self.args = args
         self.buffer = StringIO()
-        self.cookiefile = os.environ['HOME'] + "/.slurpy.aurcookie"
 
         self.curl = pycurl.Curl()
         self.curl.setopt(pycurl.HTTPHEADER, ["Expect:"])
-        self.curl.setopt(pycurl.COOKIEJAR, self.cookiefile)
+        self.curl.setopt(pycurl.COOKIEJAR, self.opts.cookie_file)
         self.curl.setopt(pycurl.WRITEFUNCTION, self.buffer.write)
         self.curl.setopt(pycurl.FOLLOWLOCATION, 1)
 
     def __del__(self):
         """ Clean up curl and cookie file """
         self.curl.close()
-        if os.path.exists(self.cookiefile):
-            os.unlink(self.cookiefile)
+        if os.path.exists(self.opts.cookie_file):
+            os.unlink(self.opts.cookie_file)
 
     def login(self):
         """ Log in to the AUR web interface with self.opts.user,
         prompt for password.
         """
+        if self.opts.user is None:
+            self.opts.user = raw_input('User: ')
+
         self.opts.password = getpass('Password: ')
         data = [
             ('user', self.opts.user),
@@ -743,24 +775,32 @@ class AURPush(Slurpy):
 
 # main processing 
 if __name__ == '__main__':
+
+    conf = read_config()
+
     _version = ' '.join(("%prog",VERSION))
     parser = OptionParser(version=_version, conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
-    parser.add_option('-c', '--color', action='store_true')
+    parser.add_option('-c', '--color', action='store_true',
+                            default=conf['color'])
     parser.add_option('-f', '--force', action='store_true')
     parser.add_option('-h', '--help', action='store_true')
     parser.add_option('-i', '--info', action='store_true')
     parser.add_option('-q', '--quiet', action='store_true')
     parser.add_option('-s', '--search', action='store_true')
-    parser.add_option('-t', '--save-to', dest='target_dir', action='store') 
+    parser.add_option('-t', '--save-to', dest='target_dir', action='store',
+                            default=conf['target_dir'])
     parser.add_option('-u', '--update', action='store_true')
-    parser.add_option('-v', '--verbose', action='count')
+    parser.add_option('-v', '--verbose', action='count',
+                            default=conf['verbose'])
     parser.add_option('-S', '--sync', action='store_true', default=True)
 
     if 'pycurl' in sys.modules:
         parser.add_option('-C', '--category', action='store', default=None)
         parser.add_option('-P', '--push', action='store_true', default=False)
-        parser.add_option('-U', '--user', action='store')
+        parser.add_option('-U', '--user', action='store', default=conf['user'])
+        parser.add_option('', '--cookie-file', action='store',
+                              default=conf['cookie_file'])
 
     opts, args = parser.parse_args()
 
