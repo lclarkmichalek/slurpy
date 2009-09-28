@@ -95,6 +95,7 @@ else:
                              New Package DEFAULT: none
                              Update DEFAULT: current category in the AUR
   -U, --user              AUR username
+      --cookie-file       file to store AUR session information in
 
  General options:
   -c, --color             use colored output
