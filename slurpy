@@ -22,7 +22,7 @@
 #          Contributors: elij <http://monkeyvschicken.net>
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2009-09-04 17:42
+# MODIFIED: 2009-10-06 12:12
 
 VERSION = '2.5.3'
 
@@ -133,6 +133,7 @@ def json_decode(url):
         return Json.loads(data)
 
 def read_config():
+    """Read in the slurpy runtime config to set default options."""
     home = os.getenv('HOME')
     xdg_config_home = os.getenv('XDG_CONFIG_HOME')
 
@@ -554,18 +555,30 @@ class AURSync(Slurpy):
         """Search the AUR for <self.args> and print results to the screen"""
         pkgs = []
         for arg in self.args:
+            filter = None
+            # user passed a filter argument
+            if arg[0] == '^' or arg[-1] == '$':
+                filter = re.compile(arg)
+                arg = arg.strip("^$")
+
             json = json_decode(self.SEARCH_URL + arg)
             if json['type'] == 'error':
                 if json['results'].lower() != "no results found":
                     self.write_ln(json['results'], type="error")
             else:
-                pkgs.extend(json['results'])
+                if filter is None:
+                    pkgs.extend(json['results'])
+                    continue
+                for pkg in json['results']:
+                        if filter.search(pkg[self.NAME]):
+                            pkgs.append(pkg)
 
         if pkgs == []:
             return
 
         # sort
         spkgs = sorted(pkgs, key=lambda k: k[self.NAME])
+        del pkgs
 
         # remove dups -- note: extra list traversal, but imo it's worth it
         i = 0
