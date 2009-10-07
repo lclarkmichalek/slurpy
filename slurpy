@@ -625,8 +625,15 @@ class AURSync(Slurpy):
         
         Returns true if a new version is available, otherwise false
         """
-        # We have to do some funky shit in here because of scm version 
-        # numbering.
+        # check that the version is not negative. $pkgver should -never- be
+        # negative but this happens when the $pkgver in the PKGBUILD is derived
+        # from some bash magic that the AUR doesn't understand.
+        if version[0] == '-':
+            self.write("AUR returned a negative version number for ", 
+                       type="warning")
+            self.write(name, color="white")
+            self.write_ln(". Ignoring.")
+            return False
 
         # if the specific package/version is in the cache, there must not be an
         # update
