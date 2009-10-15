@@ -33,6 +33,7 @@ import sys
 import gzip
 import urllib
 import urllib2
+import subprocess
 
 from getpass import getpass
 from distutils import version as Version
@@ -610,7 +611,7 @@ class AURSync(Slurpy):
         if not self.opts.quiet:
             self.write_ln("Checking for package updates... ", type="info")
 
-        file = os.popen("pacman -Qm")
+        file = subprocess.Popen(["pacman", "-Qm"], stdout=subprocess.PIPE).stdout
         for ln in file.readlines():
             name, version = ln[:-1].split(' ')
             pkg = json_decode(self.INFO_URL + name)['results']
