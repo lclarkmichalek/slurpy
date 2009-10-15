@@ -198,9 +198,9 @@ class Slurpy():
         # read COLOR_CONF to get pacman-color's settings
         if self.opts.color:
             try:
-                file = open(self.COLOR_CONF, 'r')
-                conf = file.read()
-                file.close()
+                fd = open(self.COLOR_CONF, 'r')
+                conf = fd.read()
+                fd.close()
                 for color in self.colors:
                     col = re.findall("^\s*"+color.capitalize()+".*", conf, re.M) 
                     if len(col):
@@ -320,9 +320,9 @@ class AURSync(Slurpy):
 
         # enable testing repo if enabled on the machine
         try:
-            file = open(self.PACMAN_CONF, 'r')
-            conf = file.read()
-            file.close()
+            fd = open(self.PACMAN_CONF, 'r')
+            conf = fd.read()
+            fd.close()
         except IOError:
             self.write_ln("Error reading pacman.conf, testing repo will"
                           "remain disabled", type="info")
@@ -401,15 +401,15 @@ class AURSync(Slurpy):
                     sys.exit()
 
             # download .tar.gz
-            file = open(fname + '.tar.gz', 'w')
-            file.write(urllib.urlopen(url).read())
-            file.close()
+            fd = open(fname + '.tar.gz', 'w')
+            fd.write(urllib.urlopen(url).read())
+            fd.close()
 
             # unzip -- per aur guidelines, all fnames must be .tar.gz'd
             try:
-                file = TarFile.open(fname + '.tar.gz', 'r:gz')
-                file.extractall()
-                file.close()
+                fd = TarFile.open(fname + '.tar.gz', 'r:gz')
+                fd.extractall()
+                fd.close()
             except: 
                 self.write_ln("Error extracting archive %s.tar.gz" % fname,  
                                type="error")
@@ -421,9 +421,9 @@ class AURSync(Slurpy):
             
             # download deps
             if self.opts.download > 1:
-                file = open(fname + '/PKGBUILD', 'r')
-                pkgb = file.read()
-                file.close()
+                fd = open(fname + '/PKGBUILD', 'r')
+                pkgb = fd.read()
+                fd.close()
 
                 deps = []
                 deptup = re.findall('[^(opt)](make)?depends=\((.*?)\)', 
@@ -612,8 +612,8 @@ class AURSync(Slurpy):
         if not self.opts.quiet:
             self.write_ln("Checking for package updates... ", type="info")
 
-        file = subprocess.Popen(["pacman", "-Qm"], stdout=subprocess.PIPE).stdout
-        for ln in file.readlines():
+        fd = subprocess.Popen(["pacman", "-Qm"], stdout=subprocess.PIPE).stdout
+        for ln in fd.readlines():
             name, version = ln[:-1].split(' ')
             pkg = json_decode(self.INFO_URL + name)['results']
             if pkg != "No result found":
