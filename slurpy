@@ -20,11 +20,12 @@
 #          Colin's project can be found at <http://evaryont.github.com/arson>
 #
 #          Contributors: elij <http://monkeyvschicken.net>
+#                        MrElendig
 #
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-10-06 12:12
 
-VERSION = '2.5.3'
+VERSION = '2.5.4'
 
 import glob
 import os
