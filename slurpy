@@ -644,7 +644,12 @@ class AURSync(Slurpy):
         else:
             glb = glob.glob(self.PACMAN_CACHE + "/" + name + "-*")
 
-        inst_ver = os.path.basename(glb[0])[len(name)+1:]
+        # make sure we have the right one
+        for p in glb:
+            n, v, r = os.path.basename(p).rsplit('-', 2) # foo-bar-1.2.3-2  
+            if n == name:
+                inst_ver = '-'.join((v, r))
+
         inst_ver = Version.LooseVersion(inst_ver)
         new_ver = Version.LooseVersion(version)
 
