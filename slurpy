@@ -644,17 +644,24 @@ class AURSync(Slurpy):
         else:
             glb = glob.glob(self.PACMAN_CACHE + "/" + name + "-*")
 
-        # make sure we have the right one
-        for p in glb:
-            n, v, r = os.path.basename(p).rsplit('-', 2) # foo-bar-1.2.3-2  
-            if n == name:
-                inst_ver = '-'.join((v, r))
+        if glb:
+            # make sure we have the right one then compare
+            for p in glb:
+                n, v, r = os.path.basename(p).rsplit('-', 2) # foo-bar-1.2.3-2  
+                if n == name:
+                    inst_ver = '-'.join((v, r))
+                    inst_ver = Version.LooseVersion(inst_ver)
+                    new_ver = Version.LooseVersion(version)
 
-        inst_ver = Version.LooseVersion(inst_ver)
-        new_ver = Version.LooseVersion(version)
+                    if new_ver > inst_ver:
+                        return True
+                    return False
 
-        if new_ver > inst_ver:
-            return True
+        # We failed to find 'name' in the pacman db. Let's inform the user.
+        self.write("Could not find '", type="warning")
+        self.write(name, color="white")
+        self.write("' in the pacman db")
+        self.write_ln(". Ignoring.")
         return False
 
 class AURPush(Slurpy):
