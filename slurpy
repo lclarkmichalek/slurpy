@@ -25,7 +25,7 @@
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-10-06 12:12
 
-VERSION = '2.5.4'
+VERSION = '2.5.5'
 
 import glob
 import os
@@ -644,56 +644,13 @@ class AURSync(Slurpy):
         else:
             glb = glob.glob(self.PACMAN_CACHE + "/" + name + "-*")
 
-            # FIXME: wtf's the deal here?  Why a constant 1?  Could this
-            # possibly return more than one?
-            if len(glb) == 1: 
-                pkg_name = os.path.basename(glb[0])
-                
-                # r_scm is a regex to match source control management package
-                # version numbers
-                r_scm = re.compile('-[0-9]{8}-[0-9]+$')
+        inst_ver = os.path.basename(glb[0])[len(name)+1:]
+        inst_ver = Version.LooseVersion(inst_ver)
+        new_ver = Version.LooseVersion(version)
 
-                # r_pkg is a regex to match any normal package version number
-                r_pkg = re.compile(name + '-.+-[0-9]+$')
-
-                if r_scm.search(pkg_name):
-                    scm_installed = True
-                elif r_pkg.search(pkg_name):
-                    scm_installed = False
-                else:
-                    self.write_ln("Failed to detect pkg version type. ",
-                                  "please contact my developer with the ",
-                                  "below info.", type="error")
-                    self.write_ln("pkg_name:", name, pkg_name)
-                    self.write_ln("pkg_version:", version)
-                    sys.exit()
-                
-                if r_scm.search(name + "-" + version):
-                    scm_passed = True
-                elif r_pkg.search(name+ "-" + version):
-                    scm_passed = False
-
-                if scm_passed and scm_installed:
-                    passed_ver = \
-                        r_scm.search(name + "-" + version).group().split("-")
-                    inst_ver = r_scm.search(pkg_name).group().split("-")
-
-                    # scm version numbers are always YYYYMMDD-REL
-                    if passed_ver[1] > inst_ver[1]\
-                         or (passed_ver[1] == inst_ver[1]\
-                         and passed_ver[2] > inst_ver[2]):
-                        return True
-                    else:
-                        return False
-                else:
-                    # compare LooseVersions of normal version numbers
-                    inst_ver = r_pkg.search(pkg_name).group()[len(name)+1:]
-                    inst_ver = Version.LooseVersion(inst_ver)
-                    passed_ver = Version.LooseVersion(version)
-                    if passed_ver > inst_ver:
-                        return True
-                    else:
-                        return False
+        if new_ver > inst_ver:
+            return True
+        return False
 
 class AURPush(Slurpy):
     
