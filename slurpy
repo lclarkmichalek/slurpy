@@ -729,7 +729,7 @@ class AURPush(Slurpy):
 
         for arg in self.args:
             if not os.path.isfile(arg):
-                self.write(arg, "does not exist or is not a file.",
+                self.write_ln(arg, "does not exist or is not a file.",
                            type="error")
                 sys.exit(1)
 
