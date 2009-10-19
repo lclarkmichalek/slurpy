@@ -1,6 +1,6 @@
 # Contributor: Randy Morris <randy rsontech net>
 pkgname=slurpy
-pkgver=2.1.0
+pkgver=2.1.5
 pkgrel=1
 pkgdesc="An AUR search/download/update helper in Python"
 arch=('i686' 'x86_64')
