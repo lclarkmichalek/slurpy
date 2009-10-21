@@ -7,7 +7,8 @@ arch=('i686' 'x86_64')
 url="http://rsontech.net/projects/"
 license=('None')
 depends=('python')
-optdepends=('python-cjson: faster processing for large result sets')
+optdepends=('python-cjson: faster processing for large result sets'
+            'python-pycurl: upload packages to the AUR from the command line')
 conflicts=('slurpy-git')
 provides=('slurpy-git')
 source=(http://github.com/rson/${pkgname}/raw/v${pkgver}/${pkgname})
