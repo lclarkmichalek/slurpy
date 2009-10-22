@@ -516,7 +516,7 @@ class AURSync(Slurpy):
                               "a directory", type="error")
                 sys.exit(1)
 
-            for pkg, version in self.update():
+            for pkg, inst_ver, aur_ver in self.update():
                 updates.append(pkg) 
 
             if updates == []:
@@ -544,12 +544,12 @@ class AURSync(Slurpy):
         elif self.opts.search:
             self.search()
         elif self.opts.update:
-            for pkg, version in self.update():
+            for pkg, inst_ver, aur_ver in self.update():
                 if self.opts.quiet:
                     self.write_ln(pkg)
                 elif not self.opts.download:
                     self.write(pkg, color="white")
-                    self.write_ln(" " + version, color="green")
+                    self.write_ln(" " + inst_ver, color="green")
         else:
             self.write_ln(__doc__)
 
@@ -617,8 +617,9 @@ class AURSync(Slurpy):
             name, version = ln[:-1].split(' ')
             pkg = json_decode(self.INFO_URL + name)['results']
             if pkg != "No result found":
-                if self.update_available(pkg['Name'], pkg['Version']):
-                    updates.append((name, pkg['Version']))
+                inst_ver = self.update_available(pkg['Name'], pkg['Version'])
+                if inst_ver is not None:
+                    updates.append((name, inst_ver, pkg['Version']))
 
         return updates
 
@@ -635,12 +636,12 @@ class AURSync(Slurpy):
                        type="warning")
             self.write(name, color="white")
             self.write_ln(". Ignoring.")
-            return False
+            return None
 
         # if the specific package/version is in the cache, there must not be an
         # update
         if os.path.exists(self.PACMAN_CACHE + "/" + name + "-" + version):
-            return False
+            return None
         else:
             glb = glob.glob(self.PACMAN_CACHE + "/" + name + "-*")
 
@@ -654,15 +655,15 @@ class AURSync(Slurpy):
                     new_ver = Version.LooseVersion(version)
 
                     if new_ver > inst_ver:
-                        return True
-                    return False
+                        return '-'.join((v, r))
+                    return None
 
         # We failed to find 'name' in the pacman db. Let's inform the user.
         self.write("Could not find '", type="warning")
         self.write(name, color="white")
         self.write("' in the pacman db")
         self.write_ln(". Ignoring.")
-        return False
+        return None
 
 class AURPush(Slurpy):
     
