@@ -548,18 +548,19 @@ class AURSync(Slurpy):
         elif self.opts.update:
             for pkg  in self.update():
                 if not self.opts.download:
+                    pkgname = self.colorfy(pkg[self.NAME], 'white')
+                    inst_ver = self.colorfy(pkg['_inst_ver'], 'green')
                     if self.opts.quiet:
-                        self.write_ln(pkg[self.NAME])
+                        self.write_ln(pkgname)
                     elif self.opts.verbose >= 1:
                         if pkg[self.OUT_OF_DATE] == '0':
                             aur_ver = self.colorfy(pkg[self.VERSION], 'green')
                         else:
                             aur_ver = self.colorfy(pkg[self.VERSION], 'red')
-                        self.write_ln('{0} {1} -> {2}'.format(pkg[self.NAME], 
-                            self.colorfy(pkg['_inst_ver'], 'green'), aur_ver))
+                        self.write_ln('{0} {1} -> {2}'.format(pkgname, inst_ver,
+                                                              aur_ver))
                     else:
-                        self.write_ln('{0} {1}'.format(pkg[self.NAME], 
-                            self.colorfy(pkg[_inst_ver], 'green')))
+                        self.write_ln('{0} {1}'.format(pkgname, inst_ver))
         else:
             self.write_ln(__doc__)
 
