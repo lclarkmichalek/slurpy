@@ -516,8 +516,8 @@ class AURSync(Slurpy):
                               "a directory", type="error")
                 sys.exit(1)
 
-            for pkg, inst_ver, aur_ver in self.update():
-                updates.append(pkg) 
+            for pkg in self.update():
+                updates.append(pkg[self.NAME]) 
 
             if updates == []:
                 self.write_ln("No updates available")
@@ -541,15 +541,25 @@ class AURSync(Slurpy):
 
         elif self.opts.info:
             self.info()
+
         elif self.opts.search:
             self.search()
+
         elif self.opts.update:
-            for pkg, inst_ver, aur_ver in self.update():
-                if self.opts.quiet:
-                    self.write_ln(pkg)
-                elif not self.opts.download:
-                    self.write(pkg, color="white")
-                    self.write_ln(" " + inst_ver, color="green")
+            for pkg  in self.update():
+                if not self.opts.download:
+                    if self.opts.quiet:
+                        self.write_ln(pkg[self.NAME])
+                    elif self.opts.verbose >= 1:
+                        if pkg[self.OUT_OF_DATE] == '0':
+                            aur_ver = self.colorfy(pkg[self.VERSION], 'green')
+                        else:
+                            aur_ver = self.colorfy(pkg[self.VERSION], 'red')
+                        self.write_ln('{0} {1} -> {2}'.format(pkg[self.NAME], 
+                            self.colorfy(pkg['_inst_ver'], 'green'), aur_ver))
+                    else:
+                        self.write_ln('{0} {1}'.format(pkg[self.NAME], 
+                            self.colorfy(pkg[_inst_ver], 'green')))
         else:
             self.write_ln(__doc__)
 
@@ -607,7 +617,7 @@ class AURSync(Slurpy):
 
     def update(self):
         """Checks all explicitly installed packages for updates in the AUR.
-        Returns a list of 3-tuples ('pkgname', 'inst_ver', 'aur_ver')'"""
+        Returns a list dicts representing the package.'"""
         updates = []
 
         if not self.opts.quiet:
@@ -623,7 +633,8 @@ class AURSync(Slurpy):
                aur_ver = Version.LooseVersion(pkg[self.VERSION])
                inst_ver = Version.LooseVersion(inst_ver)
                if aur_ver > inst_ver:
-                   updates.append((name, str(inst_ver), str(aur_ver)))
+                   pkg['_inst_ver'] = str(inst_ver)
+                   updates.append(pkg)
 
         return updates
 
