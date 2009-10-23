@@ -559,7 +559,7 @@ class AURSync(Slurpy):
                             self.colorfy(pkg['_inst_ver'], 'green'), aur_ver))
                     else:
                         self.write_ln('{0} {1}'.format(pkg[self.NAME], 
-                            self.colorfy(pkg[_inst_ver], 'green')))
+                            self.colorfy(pkg['_inst_ver'], 'green')))
         else:
             self.write_ln(__doc__)
 
