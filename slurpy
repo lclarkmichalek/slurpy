@@ -138,6 +138,8 @@ def read_config():
     """Read in the slurpy runtime config to set default options."""
     home = os.getenv('HOME')
     xdg_config_home = os.getenv('XDG_CONFIG_HOME')
+    if xdg_config_home is None:
+        xdg_config_home = "%s/.config/" % home
 
     # configuration options, sane defaults
     AUR_USER = None
@@ -155,7 +157,7 @@ def read_config():
     if conf is not None:
         try:
             exec(conf.read())
-        except SyntaxError:
+        except (SyntaxError, NameError):
             print "error: There is a syntax error in your config file."
             print "Please correct this and try again."
             sys.exit(1)
