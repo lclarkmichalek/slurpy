@@ -25,7 +25,7 @@
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2009-10-06 12:12
 
-VERSION = '2.5.5'
+VERSION = '2.1.5'
 
 import glob
 import os
@@ -138,6 +138,8 @@ def read_config():
     """Read in the slurpy runtime config to set default options."""
     home = os.getenv('HOME')
     xdg_config_home = os.getenv('XDG_CONFIG_HOME')
+    if xdg_config_home is None:
+        xdg_config_home = "%s/.config/" % home
 
     # configuration options, sane defaults
     AUR_USER = None
@@ -155,7 +157,7 @@ def read_config():
     if conf is not None:
         try:
             exec(conf.read())
-        except SyntaxError:
+        except (SyntaxError, NameError):
             print "error: There is a syntax error in your config file."
             print "Please correct this and try again."
             sys.exit(1)
@@ -178,16 +180,22 @@ def strip_slashes(str):
     return str
 
 # class definitions
-class Slurpy():
-    
-    """Main Slurpy class"""
+class SlurpyFrontEnd():
+    """
+    Handles all output pertaining to packages returned by the Slurpy* classes
+
+    """
 
     COLOR_CONF = "/etc/pacman.d/color.conf"
-    AUR_URL = "http://aur.archlinux.org"
 
-    def __init__(self, opts):
+    def __init__(self, opts, args):
         """Sets up colors and sets opts for the class"""
         self.opts = opts
+        self.args = args
+        if opts.sync:
+            self.sync = AURSync(opts, args)
+        else:
+            self.push = AURPush(opts, args)
 
         # default colors to be used if COLOR_CONF is not readable
         self.colors = {"red":"boldred", "green":"boldgreen",
@@ -208,10 +216,195 @@ class Slurpy():
                         col = re.sub("intensive\s*", "bold", col)
                         self.colors[color] = col
             except IOError:
-                self.out(":debug:Error reading color.conf, using default colors")
-            
+                self.write_ln("Error reading color.conf, using default colors",
+                              type="debug")
+        
 
-    def out(self, s):
+    def search(self):
+        pkgs = []
+        for arg in self.args:
+            try:
+                pkgs.extend(self.sync.search(arg))
+            except JSONError, e:
+                self.write_ln(e.value, type="error")
+                continue
+
+        if pkgs == []:
+            return
+
+        # sort
+        spkgs = sorted(pkgs, key=lambda k: k[self.sync.NAME])
+        del pkgs
+
+        # remove dups -- note: extra list traversal, but imo it's worth it
+        i = 0
+        for pkg in spkgs:
+            if pkg == spkgs[i]: 
+                continue
+            i += 1
+            spkgs[i] = pkg
+        del spkgs[i+1:]
+
+        for pkg in spkgs:
+            if self.opts.quiet:
+                self.write_ln(pkg[self.NAME], color="white")
+            else:
+                self.write("aur", color="magenta")
+                self.write("/")
+                self.write(pkg[self.sync.NAME], color="white")
+                if pkg[self.sync.OUT_OF_DATE] == '0':
+                    self.write_ln(" " + pkg[self.sync.VERSION], color="green")
+                else:
+                    self.write_ln(" " + pkg[self.sync.VERSION], color="red")
+
+                self.write_ln("   ", strip_slashes(pkg[self.sync.DESCRIPTION]))
+        
+
+    def info(self):
+        for arg in self.args:
+            try:
+                pkg = self.sync.info(arg)
+            except JSONError, e:
+                self.write_ln(e.value, type="error")
+                sys.exit(1)
+
+            if pkg[self.sync.OUT_OF_DATE] == '0':
+                out_of_date = "No"
+            else:
+                out_of_date = "Yes"
+
+            self.write("Repository      : ")
+            self.write_ln("aur", color="magenta")
+            self.write("Name            : ")
+            self.write_ln(pkg[self.sync.NAME], color="white")
+            self.write("Version         : ")
+            if out_of_date == "Yes":
+                self.write_ln(pkg[self.sync.VERSION], color="red")
+            else:
+                self.write_ln(pkg[self.sync.VERSION], color="green")
+            self.write("URL             : ")
+            self.write_ln(strip_slashes(pkg[self.sync.URL]), color="cyan")
+            self.write("AUR Page        : ")
+            self.write_ln(self.sync.AUR_URL + '/packages.php?ID=' + pkg[self.sync.ID], color="cyan")
+            self.write("Category        : ")
+            self.write_ln(self.sync.CATEGORIES[int(pkg[self.sync.CATEGORY])])
+            self.write("Licenses        : ")
+            self.write_ln(strip_slashes(pkg[self.sync.LICENSE]))
+            self.write("Number of Votes : ")
+            self.write_ln(pkg[self.sync.VOTES])
+            self.write("Out of Date     : ")
+            if out_of_date == "Yes":
+                self.write_ln(out_of_date, color="red")
+            else:
+                self.write_ln(out_of_date, color="green")
+            self.write("Description     : ")
+            self.write_ln(strip_slashes(pkg[self.sync.DESCRIPTION]), "\n")
+
+    def download(self):
+        try:
+            if self.opts.target_dir is not None:
+                os.chdir(self.opts.target_dir)
+        except OSError:
+            self.write_ln(self.opts.target_dir, "does not exist or is not",
+                          "a directory", type="error")
+            sys.exit(1)
+
+        dledpkgs = [] # holds list of downloaded pkgs
+        repodeps = [] # holds list of dependencies available in pacman repos
+        for arg in self.args:
+            if arg in repodeps: 
+                continue
+
+            try:
+                pkg, deps = self.sync.download(arg)
+            except JSONError, e:
+                self.write_ln(e.value, type="error")
+                continue
+            except FileExistsError, e:
+                self.write_ln(e.fname, type="error")
+                self.write_ln("Pass -f to force this operation.")
+                continue
+            except DirectoryExistsError, e:
+                self.write_ln(e.dir, type="error")
+                self.write_ln("Pass -f to force this operation.")
+                continue
+
+            if pkg is not None:
+                dledpkgs.append(pkg)
+            if deps is not None:
+                repodeps.extend(deps)
+
+            if self.opts.download > 1:
+                deps = self.sync.get_depends(arg)
+
+                for dep in deps:
+                    dpkgs = []
+                    drdeps = []
+
+                    # download dependencies, but ignore already downloaded pkgs
+                    try:
+                        dpkg, ddeps = self.sync.download(dep, dledpkgs)
+                    except JSONError, e:
+                        self.write_ln(e.value, type="error")
+                        continue
+                    except FileExistsError, e:
+                        self.write_ln(e.fname, type="error")
+                        self.write_ln("Pass -f to force this operation.")
+                        continue
+                    except DirectoryExistsError, e:
+                        self.write_ln(e.dir, type="error")
+                        self.write_ln("Pass -f to force this operation.")
+                        continue
+
+                    if dpkg is not None:
+                        dpkgs.append(dpkg)
+                    if ddeps is not None:
+                        drdeps.extend(ddeps)
+
+                    for p in dpkgs:
+                        d = self.sync.get_depends(p)
+                        if d != []:
+                            deps.extend(d)
+                    
+                    if dpkgs != []:
+                        dledpkgs.extend(dpkgs)
+                    if drdeps != []:
+                        repodeps.extend(drdeps)
+
+        # remove dups
+        repodeps = list(set(repodeps))
+        repodeps.sort()
+        dledpkgs.sort()
+
+        self.display_result(dledpkgs, repodeps)
+
+    def display_result(self, pkgs, deps):
+        """Print a nicely formated result of <pkgs> and <deps>"""
+        if pkgs:
+            if len(pkgs) == 1 and not deps:
+                self.write(pkgs[0], color="white")
+                self.write(" downloaded to ")
+                self.write_ln(os.getcwd(), color="green")
+            else:
+                self.write("Packages downloaded to ")
+                self.write(os.getcwd(), color="green")
+                self.write_ln(":")
+                for pkg in pkgs:
+                    self.write_ln("   ", pkg, color="white")
+        if deps:
+            if len(deps) == 1 and not pkgs:
+                self.write(deps[0], color="white")
+                self.write(" is available in ")
+                self.write_ln("pacman repos", color="yellow")
+            else:
+                self.write("\nDependencies found in ")
+                self.write("pacman repos", color="yellow")
+                self.write_ln(":")
+                for dep in deps:
+                    self.write_ln("   ", dep, color="white")
+
+    def colorfy(self, string, col):
+        """Returns <string> with the ansi escape codes wrapping the string"""
         colors = {"black":      "0",  "gray":           "9",
                   "red":        "1",  "boldred":        "10",
                   "green":      "2",  "boldgreen":      "11",
@@ -222,36 +415,114 @@ class Slurpy():
                   "white":      "7",  "boldwhite":      "16",
                   "foreground": "8",  "boldforeground": "17"}
 
-        if self.opts.color:
-            # use the template :format: to add color and/or message type
-            for k, v in self.colors.items():
-                if int(colors[v]) < 9:
-                    s = s.replace(':%s:' % k, '\033[3%sm' % colors[v])
-                else:
-                    v = int(colors[v]) - 9
-                    s = s.replace(':%s:' % k, '\033[1;3%sm' % v)
-
-            s = s.replace(':fg:', '\033[1;m')
-            s = s.replace(':error:', '\033[31merror:\033[1;m ')
-            s = s.replace(':warning:', '\033[33mwarning:\033[1;m ')
-            s = s.replace(':info:', '\033[35minfo:\033[1;m ')
-            s = s.replace(':debug:', '\033[1;36mdebug:\033[1;m ')
+        if not self.opts.color or col not in colors:
+            return string
+        elif self.colors[col][:4] == "bold":
+            col = self.colors[col][4:]
+            return "\033[1;3" + colors[col] + "m" + string + "\033[1;m"
         else:
-            # just strip out the template crap
-            for k, v in self.colors.items():
-                if int(colors[v]) < 9:
-                    s = s.replace(':%s:' % k, '')
+            return "\033[3" + colors[self.colors[col]] + "m" + string + \
+                    "\033[1;m"
+
+    def update(self):
+        pkgs = self.sync.update()
+        for pkg in pkgs:
+            if not self.opts.download:
+                pkgname = self.colorfy(pkg[self.sync.NAME], 'white')
+                inst_ver = self.colorfy(pkg['_inst_ver'], 'green')
+                
+                if self.opts.quiet:
+                    self.write_ln(pkgname)
+                elif self.opts.verbose >= 1:
+                    if pkg[self.sync.OUT_OF_DATE] == '0':
+                        aur_ver = self.colorfy(pkg[self.sync.VERSION], 'green')
+                    else:
+                        aur_ver = self.colorfy(pkg[self.sync.VERSION], 'red')
+                    self.write_ln('{0} {1} -> {2}'.format(pkgname, inst_ver,
+                                                          aur_ver))
                 else:
-                    v = int(colors[v]) - 9
-                    s = s.replace(':%s:' % k, '')
+                    self.write_ln('{0} {1}'.format(pkgname, inst_ver))
+        return pkgs
 
-            s = s.replace(':fg:', '')
-            s = s.replace(':error:', 'error: ')
-            s = s.replace(':warning:', 'warning: ')
-            s = s.replace(':info:', 'info: ')
-            s = s.replace(':debug:', 'debug: ')
+    def write(self, *args, **kwargs):
+        """print wrapper: provides an easy way to print colors and templates
 
-        print "\033[1;m%s\033[1;m" % s
+        optional kwargs: color = one of the following colors:
+                                 red, green, yellow, blue, magenta, cyan, white
+
+                         type = templates defined as follows:
+                            "info",    prepends white "info: " to str
+                            "debug",   prepends blue "debug: " to str
+                            "warning", prepends yellow "warning: " to str
+                            "error",   prepends red "error: " to str
+        """
+
+        string = ' '.join(args)
+
+        for arg in ['color', 'type']:
+            if arg not in kwargs:
+                kwargs[arg] = False
+
+        if kwargs['color']:
+            string = self.colorfy(string, kwargs['color'])
+
+        if kwargs['type'] == "error":
+            string = self.colorfy("error: ", "red") + string
+        elif kwargs['type'] == "warning":
+            string = self.colorfy("warning: ", "yellow") + string
+        elif kwargs['type'] == "info":
+            string = self.colorfy("info: ", "magenta") + string
+            if self.opts.verbose > 0:
+                sys.stdout.write(string)
+            return
+        elif kwargs['type'] == "debug":
+            string = self.colorfy("debug: ", "cyan") + string
+            if self.opts.verbose > 1:
+                sys.stdout.write(string)
+            return
+
+        sys.stdout.write(string)
+
+    def write_ln(self, *args, **kwargs):
+        """print wrapper: calls self.write() and appends a newline if anything
+        was actually written (due to verbosity level)"""
+        args = list(args) + ['\n']
+        self.write(*args, **kwargs)
+
+    def login():
+        if self.opts.user is None:
+            self.opts.user = raw_input('User: ')
+
+        password = getpass('Password: ')
+        if not slurpy.push.login(self.opts.user, passwd):
+            self.write_ln("Bad username or password. Please try again.", 
+                          type="error")
+            sys.exit(1)
+
+    def upload():
+        for arg in self.args:
+            if not os.path.isfile(arg):
+                self.write_ln(arg, "does not exist or is not a file.",
+                           type="error")
+                sys.exit(1)
+
+            try:
+                success = self.push.upload(arg)
+            except FileUploadError, e:
+                self.write_ln(e.value, type="error")
+
+            if success:
+                self.write(pkg, color="white")
+                self.write_ln(" has been uploaded.")
+            else:
+                self.write("Unknown error.", type="error")
+            
+
+class Slurpy():
+    
+    """Main Slurpy class"""
+
+    AUR_URL = "http://aur.archlinux.org"
 
 class AURSync(Slurpy):
 
@@ -284,9 +555,7 @@ class AURSync(Slurpy):
 
 
     def __init__(self, opts, args):
-
-        Slurpy.__init__(self, opts)
-
+        self.opts = opts
         self.args = []
         
         # encode white space
@@ -299,124 +568,86 @@ class AURSync(Slurpy):
             conf = fd.read()
             fd.close()
         except IOError:
-            self.out(":info:Error reading pacman.conf, testing repo will" 
-                     "remain disabled")
+            #self.write_ln("Error reading pacman.conf, testing repo will"
+            #               "remain disabled", type="info")
+            pass
 
         if re.search('^\s*\[testing\]', conf, re.M):
             self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
-            self.out(":debug:Testing repo enabled")
+            #self.write_ln("Testing repo enabled", type="debug")
 
-    def display_result(self, pkgs, deps):
-        """Print a nicely formated result of <pkgs> and <deps>"""
-        if pkgs:
-            if len(pkgs) == 1 and not deps:
-                out = ":white:%s :fg:downloaded to :green:%s" \
-                        % (pkgs[0], os.getcwd())
-                self.out(out)
-            else:
-                self.out("Packages downloaded to :green:%s:" % os.getcwd())
-                for pkg in pkgs:
-                    self.out("   :white:%s" % pkg)
-        if deps:
-            if len(deps) == 1 and not pkgs:
-                out = ":white:%s :fg:is available in " % deps[0]
-                out += ":yellow:pacman repos"
-                self.out(out)
-            else:
-                self.out("\nDependencies found in :yellow:pacman repos:")
-                for dep in deps:
-                    self.out("   :white:%s" % dep)
-
-    def download(self, ignore=[]):
+    def download(self, pkgname, ignore=[]):
         """Downloads all packages in <self.args>
         
         Returns any (make)dependencies of that package found in the PKGBUILD.
         """
-        dledpkgs = [] # holds list of downloaded pkgs
-        repodeps = [] # holds list of dependencies available in pacman repos
-        for arg in self.args:
-            if arg in ignore: 
-                continue
 
-            if self.in_sync_db(arg) != False:
-                repodeps.append(arg)
-                continue
+        if pkgname in ignore:
+            return(none, [])
 
-            json = json_decode(self.INFO_URL + arg)
+        if self.in_sync_db(pkgname) != False:
+            return(None, [pkgname])
 
-            if json['type'] == 'error':
-                self.out(":error:%s %s" % (arg, json['results']))
-                return(dledpkgs, repodeps)
+        json = json_decode(self.INFO_URL + pkgname)
 
-            pkg = json['results']
-            url = self.AUR_URL + strip_slashes(pkg[self.PATH])
-            c_url = self.AUR_URL + '/packages/' + arg + '/' + arg + '.tar.gz'
-            if url != c_url:
-                out = ":info:There might be a problem with this package in "
-                out += "the AUR's database."
-                self.out(out)
-                self.out(":info:Using constructed url instead.")
-                url = c_url
+        if json['type'] == 'error':
+            raise JSONError("%s %s" % (pkgname, json['results']))
 
-            fname = url.split('/')[-1].split('.tar.gz')[0]
-            if not self.opts.force:
-                if os.path.exists(fname + '.tar.gz'):
-                    self.out(":error:%s/%s.tar.gz exists" 
-                                % (os.getcwd(), fname))
-                    self.out("Pass -f to force this operation.")
-                    sys.exit(1)
+        pkg = json['results']
+        url = self.AUR_URL + strip_slashes(pkg[self.PATH])
+        c_url = self.AUR_URL + '/packages/' + pkgname + '/' + pkgname + '.tar.gz'
+        if url != c_url:
+            #self.write_ln("There might be a problem with this package in "
+            #              "the AUR's database.", type="info")
+            #self.write_ln("Using constructed url instead.", type="info")
+            url = c_url 
+            
 
-                if os.path.exists(fname):
-                    self.out(":error:%s/%s exists" % (os.getcwd(), fname))
-                    self.out("Pass -f to force this operation.")
-                    sys.exit(1)
+        fname = url.split('/')[-1].split('.tar.gz')[0]
+        if not self.opts.force:
+            if os.path.exists(fname + '.tar.gz'):
+                raise FileExistsError("%s/%s.tar.gz exists." %(os.getcwd(), fname))
 
-            # download .tar.gz
-            fd = open(fname + '.tar.gz', 'w')
-            fd.write(urllib.urlopen(url).read())
+            if os.path.exists(fname):
+                raise DirectoryExistsError("%s/%s exists." %(os.getcwd(), fname))
+
+        # download .tar.gz
+        fd = open(fname + '.tar.gz', 'w')
+        fd.write(urllib.urlopen(url).read())
+        fd.close()
+
+        # unzip -- per aur guidelines, all fnames must be .tar.gz'd
+        try:
+            fd = TarFile.open(fname + '.tar.gz', 'r:gz')
+            fd.extractall()
+            fd.close()
+        except: 
+            #self.write_ln("Error extracting archive %s.tar.gz" % fname,  
+            #               type="error")
+            os.unlink(fname + '.tar.gz')
+            sys.exit(1)
+
+        os.unlink(fname + '.tar.gz')
+        return(fname, None)
+            
+
+    def get_depends(self, pkgname):
+        """stub"""
+        # download deps
+        if self.opts.download > 1:
+            fd = open('%s/%s/PKGBUILD' % (self.opts.target_dir, pkgname), 'r')
+            pkgb = fd.read()
             fd.close()
 
-            # unzip -- per aur guidelines, all fnames must be .tar.gz'd
-            try:
-                fd = TarFile.open(fname + '.tar.gz', 'r:gz')
-                fd.extractall()
-                fd.close()
-            except: 
-                self.out(":error:Error extracting archive %s.tar.gz" % fname)
-                os.unlink(fname + '.tar.gz')
-                sys.exit(1)
+            deps = []
+            deptup = re.findall('[^(opt)](make)?depends=\((.*?)\)', 
+                                pkgb, re.S)
+            for group in deptup:
+                for dep in group[1].split():
+                    dep = re.findall('(.[^<>=]*).*', dep)[0].strip("'")
+                    deps.append(dep)
 
-            os.unlink(fname + '.tar.gz')
-            dledpkgs.append(fname)
-            
-            # download deps
-            if self.opts.download > 1:
-                fd = open(fname + '/PKGBUILD', 'r')
-                pkgb = fd.read()
-                fd.close()
-
-                deps = []
-                deptup = re.findall('[^(opt)](make)?depends=\((.*?)\)', 
-                                    pkgb, re.S)
-                for group in deptup:
-                    for dep in group[1].split():
-                        dep = re.findall('(.[^<>=]*).*', dep)[0].strip("'")
-                        deps.append(dep)
-
-                # download dependencies, but ignore already downloaded pkgs
-                pkgs, deps = AURSync(self.opts, deps).download(dledpkgs)
-
-                if pkgs != []:
-                    dledpkgs.extend(pkgs)
-                if deps != []:
-                    repodeps.extend(deps)
-
-        # remove dups
-        repodeps = list(set(repodeps))
-        repodeps.sort()
-        dledpkgs.sort()
-
-        return dledpkgs, repodeps
+            return deps
 
     def in_sync_db(self, name): 
         """Checks if <name> exists in the local syncdb for <repo>
@@ -429,202 +660,68 @@ class AURSync(Slurpy):
                 return repo
         return False
 
-    def info(self):
+    def info(self, pkgname):
         """Prints all known info about each package in <self.args>"""
-        for arg in self.args:
-            json = json_decode(self.INFO_URL + arg)
-            if json['type'] == 'error':
-                self.out(":error:%s" % json['results'])
-                sys.exit(1)
-            pkg = json['results']
-
-            if pkg[self.OUT_OF_DATE] == '0':
-                out_of_date = "No"
-            else:
-                out_of_date = "Yes"
-
-            self.out("Repository      : :magenta:aur")
-            self.out("Name            : :white:%s" % pkg[self.NAME])
-            if out_of_date == "Yes":
-                out = ":red:%s" % pkg[self.VERSION]
-            else:
-                out = ":green:%s" % pkg[self.VERSION]
-            self.out("Version         : %s" % out)
-            self.out("URL             : :cyan:%s" 
-                        % strip_slashes(pkg[self.URL]))
-            self.out("AUR Page        : :cyan:%s/packages.php?ID=%s" 
-                        % (self.AUR_URL, pkg[self.ID]))
-            self.out("Category        : %s" 
-                        % self.CATEGORIES[int(pkg[self.CATEGORY])])
-            self.out("Licenses        : %s" 
-                        % strip_slashes(pkg[self.LICENSE]))
-            self.out("Number of Votes : %s" % pkg[self.VOTES])
-            if out_of_date == "Yes":
-                out = ":red:%s" % out_of_date
-            else:
-                out = ":green:%s" % out_of_date
-            self.out("Out of Date     : %s" % out)
-            self.out("Description     : %s\n" 
-                        % strip_slashes(pkg[self.DESCRIPTION]))
+        json = json_decode(self.INFO_URL + pkgname)
+        if json['type'] == 'error':
+            raise JSONError(json['results'])
+            #self.write_ln(json['results'], type="error")
+            sys.exit(1)
+        return json['results']
 
     def run(self):
         """Main processing for AURSync.
 
         Handles all function dispatching and pre/post result output.
         """
-        if self.opts.update and self.opts.download:
-            updates = [] # holds all available updates
+        pass
 
-            try:
-                if self.opts.target_dir is not None:
-                    os.chdir(self.opts.target_dir)
-            except OSError:
-                self.out(":error:%s does not exist or is not a directory"
-                            % self.opts.target_dir)
-                sys.exit(1)
-
-            for pkg, version in self.update():
-                updates.append(pkg) 
-
-            if updates == []:
-                self.out("No updates available")
-                return
-
-            self.args = updates
-            self.out(":info:Downloading updates...")
-
-            self.display_result(*self.download())
-
-        elif self.opts.download:
-            try:
-                if self.opts.target_dir is not None:
-                    os.chdir(self.opts.target_dir)
-            except OSError:
-                self.out(":error:%s does not exist or is not a directory"
-                            % self.opts.target_dir)
-                sys.exit(1)
-
-            self.display_result(*self.download())
-
-        elif self.opts.info:
-            self.info()
-        elif self.opts.search:
-            self.search()
-        elif self.opts.update:
-            for pkg, version in self.update():
-                if self.opts.quiet:
-                    self.out(pkg)
-                elif not self.opts.download:
-                    self.out(":white:%s :green:%s" % (pkg, version))
-        else:
-            self.out(__doc__)
-
-    def search(self):
+    def search(self, pkgname):
         """Search the AUR for <self.args> and print results to the screen"""
         pkgs = []
-        for arg in self.args:
-            filter = None
-            # user passed a filter argument
-            if arg[0] == '^' or arg[-1] == '$':
-                filter = re.compile(arg)
-                arg = arg.strip("^$")
+        filter = None
+        # user passed a filter argument
+        if pkgname[0] == '^' or pkgname[-1] == '$':
+            filter = re.compile(pkgname)
+            pkgname = pkgname.strip("^$")
 
-            json = json_decode(self.SEARCH_URL + arg)
-            if json['type'] == 'error':
-                if json['results'].lower() != "no results found":
-                    self.out(":error:%s" % json['results'])
+        json = json_decode(self.SEARCH_URL + pkgname)
+        if json['type'] == 'error':
+            if json['results'].lower() != "no results found":
+                raise JSONError(json['results'])
+        else:
+            if filter is None:
+                pkgs.extend(json['results'])
             else:
-                if filter is None:
-                    pkgs.extend(json['results'])
-                    continue
                 for pkg in json['results']:
                         if filter.search(pkg[self.NAME]):
                             pkgs.append(pkg)
 
-        if pkgs == []:
-            return
-
-        # sort
-        spkgs = sorted(pkgs, key=lambda k: k[self.NAME])
-        del pkgs
-
-        # remove dups -- note: extra list traversal, but imo it's worth it
-        i = 0
-        for pkg in spkgs:
-            if pkg == spkgs[i]: 
-                continue
-            i += 1
-            spkgs[i] = pkg
-        del spkgs[i+1:]
-
-        for pkg in spkgs:
-            if self.opts.quiet:
-                self.out(":white:%s" % pkg[self.NAME])
-            else:
-                out = ":magenta:aur:fg:/:white:%s " % pkg[self.NAME]
-                if pkg[self.OUT_OF_DATE] == '0':
-                    out += ":green:%s" % pkg[self.VERSION]
-                else:
-                    out += ":red:%s" % pkg[self.VERSION]
-                self.out(out)
-                self.out("    %s" % strip_slashes(pkg[self.DESCRIPTION]))
+        return pkgs
 
     def update(self):
-        """Checks all explicitly installed packages for updates in the AUR"""
+        """Checks all explicitly installed packages for updates in the AUR.
+        Returns a list dicts representing the package.'"""
         updates = []
 
         if not self.opts.quiet:
-            self.out(":info:Checking for package updates... ")
+            #self.write_ln("Checking for package updates... ", type="info")
+            pass
 
-        fd = subprocess.Popen(["pacman", "-Qm"], stdout=subprocess.PIPE).stdout
-        for ln in fd.readlines():
-            name, version = ln[:-1].split(' ')
+        with subprocess.Popen(["pacman", "-Qm"], stdout=subprocess.PIPE).stdout as fd:
+            data = fd.readlines()
+        
+        for ln in data:
+            name, inst_ver  = ln[:-1].split(' ')
             pkg = json_decode(self.INFO_URL + name)['results']
             if pkg != "No result found":
-                if self.update_available(pkg['Name'], pkg['Version']):
-                    updates.append((name, pkg['Version']))
+               aur_ver = Version.LooseVersion(pkg[self.VERSION])
+               inst_ver = Version.LooseVersion(inst_ver)
+               if aur_ver > inst_ver:
+                   pkg['_inst_ver'] = str(inst_ver)
+                   updates.append(pkg)
 
         return updates
-
-    def update_available(self, name, version):
-        """Helper for update(): does version comparison logic 
-        
-        Returns true if a new version is available, otherwise false
-        """
-        # check that the version is not negative. $pkgver should -never- be
-        # negative but this happens when the $pkgver in the PKGBUILD is derived
-        # from some bash magic that the AUR doesn't understand.
-        if version[0] == '-':
-            out = ":warning:AUR returned a negative version number for "
-            out += ":white:%s. Ignoring" % name
-            self.out(out)
-            return False
-
-        # if the specific package/version is in the cache, there must not be an
-        # update
-        if os.path.exists(self.PACMAN_CACHE + "/" + name + "-" + version):
-            return False
-        else:
-            glb = glob.glob(self.PACMAN_CACHE + "/" + name + "-*")
-
-        if glb:
-            # make sure we have the right one then compare
-            for p in glb:
-                n, v, r = os.path.basename(p).rsplit('-', 2) # foo-bar-1.2.3-2  
-                if n == name:
-                    inst_ver = '-'.join((v, r))
-                    inst_ver = Version.LooseVersion(inst_ver)
-                    new_ver = Version.LooseVersion(version)
-
-                    if new_ver > inst_ver:
-                        return True
-                    return False
-
-        # We failed to find 'name' in the pacman db. Let's inform the user.
-        out = ":warning:Could not find ':white:%s:" % name
-        out = "fg' in the pacman db.  Ignoring"
-        self.out(out)
-        return False
 
 class AURPush(Slurpy):
     
@@ -633,8 +730,8 @@ class AURPush(Slurpy):
     AUR_SUBMIT_URL = "http://aur.archlinux.org/pkgsubmit.php"
 
     def __init__(self, opts, args):
-        Slurpy.__init__(self, opts)
 
+        self.opts = opts
         self.args = args
         self.buffer = StringIO()
 
@@ -650,17 +747,13 @@ class AURPush(Slurpy):
         if os.path.exists(self.opts.cookie_file):
             os.unlink(self.opts.cookie_file)
 
-    def login(self):
+    def login(self, user, passwd):
         """ Log in to the AUR web interface with self.opts.user,
         prompt for password.
         """
-        if self.opts.user is None:
-            self.opts.user = raw_input('User: ')
-
-        self.opts.password = getpass('Password: ')
         data = [
-            ('user', self.opts.user),
-            ('passwd', self.opts.password)]
+            ('user', user),
+            ('passwd', passwd)]
 
         self.curl.setopt(pycurl.HTTPPOST, data)
         self.curl.setopt(pycurl.URL, self.AUR_URL)
@@ -668,66 +761,78 @@ class AURPush(Slurpy):
         
         # Bad username or password
         if self.buffer.getvalue().find("Bad username or password") != -1:
-            self.out(":error:Bad username or password. Please try again.") 
-            sys.exit(1)
+            return False
+        return True
 
     def run(self):
         """ Main processing for AURPush """
-        if opts.category is not None:
-            if opts.category not in AURSync.CATEGORIES:
-                self.out(":error:Category does not exist, please enter one of "
-                              "the following categories:")
-                for cat in AURSync.CATEGORIES[2:]:
-                    self.out(cat)
+        pass
 
-                sys.exit(1)
-
-        self.login()
-        self.upload()
-
-    def upload(self):
+    def upload(self, fname):
         """ Upload files in self.args to the aur """
 
-        for arg in self.args:
-            if not os.path.isfile(arg):
-                self.out(":error:%s does not exist or is not a file." % arg)
-                sys.exit(1)
+        data = [
+            ('pkgsubmit', '1'),
+            ('category', '%s' % AURSync.CATEGORIES.index(self.opts.category)),
+            ('pfile', (pycurl.FORM_FILE, fname))]
 
-            data = [
-                ('pkgsubmit', '1'),
-                ('category', '%s' % AURSync.CATEGORIES.index(self.opts.category)),
-                ('pfile', (pycurl.FORM_FILE, arg))]
+        self.curl.setopt(pycurl.HTTPPOST, data)
+        self.curl.setopt(pycurl.URL, self.AUR_SUBMIT_URL)
 
-            self.curl.setopt(pycurl.HTTPPOST, data)
-            self.curl.setopt(pycurl.URL, self.AUR_SUBMIT_URL)
+        self.buffer.truncate(0)
+        try:
+            self.curl.perform()
+        except:
+            raise FileUploadError(fname, "Something is wrong with the "
+                                  "selected file.\nIf it is a .tar.gz, "
+                                  "try rebuilding it.")
 
-            self.buffer.truncate(0)
-            try:
-                self.curl.perform()
-            except:
-                self.out(":error:Something is wrong with the selected file.")
-                self.out("If it is a .tar.gz file, try rebuilding it.")
+        if self.buffer.getvalue().find("not allowed to overwrite") != -1:
+            raise FileUploadError(fname, "You do not own this package and "
+                                  "can not overwrite these files.")
+        elif self.buffer.getvalue().find("Unknown file format") != -1:
+            raise FileUploadError(fname, "Incorrect file format. Upload "
+                                  "must conform to AUR packaging "
+                                  "guidelines.")
 
-            if self.buffer.getvalue().find("not allowed to overwrite") != -1:
-                out = ":error::white:%s does not own this " % self.opts.user
-                out += "package and can not overwrite these files."
-                self.out(out)
-            elif self.buffer.getvalue().find("Unknown file format") != -1:
-                self.out(":error:Incorrect file format. Upload must conform "
-                         "to AUR packaging guidelines.")
+        idx = self.buffer.getvalue().find("<span class='f2'>")
+        if idx != -1:
+            pkg = self.buffer.getvalue()[17+idx:]
 
-            idx = self.buffer.getvalue().find("<span class='f2'>")
+            idx = pkg.find("</span>")
             if idx != -1:
-                pkg = self.buffer.getvalue()[17+idx:]
+                pkg = pkg[:idx]
+                
+                if pkg is not None:
+                    return True
+        return False
 
-                idx = pkg.find("</span>")
-                if idx != -1:
-                    pkg = pkg[:idx]
-                    
-                    if pkg is not None:
-                        self.out(":white:%s :fg:has been uploaded."
-                                    % pkg)
-            
+# exceptions
+
+class JSONError(Exception):
+    """To be thrown when the AUR returns errors in the JSON results"""
+
+    def __init__(self, value):
+        self.value = value.lower()
+
+class FileExistsError(Exception):
+    """To be thrown when a file exists that we need to write to"""
+
+    def __init__(self, fname):
+        self.fname = fname
+
+class FileUploadError(Exception):
+    """To be thrown when pycurl can not upload the file"""
+
+    def __init__(self, fname, msg):
+        self.fname = fname
+        self.msg = msg
+
+class DirectoryExistsError(Exception):
+    """To be thrown when a directory exists that we need to write to"""
+
+    def __init__(self, dir):
+        self.dir = dir
 
 # main processing 
 if __name__ == '__main__':
@@ -760,9 +865,55 @@ if __name__ == '__main__':
 
     opts, args = parser.parse_args()
 
+#     if 'pycurl' in sys.modules and opts.push: 
+#         AURPush(opts, args).run() 
+#     else: 
+#         AURSync(opts, args).run() 
+    slurpy = SlurpyFrontEnd(opts,args)
+
     if 'pycurl' in sys.modules and opts.push:
-        AURPush(opts, args).run()
+        if opts.category is not None:
+            if opts.category not in AURSync.CATEGORIES:
+                slurpy.write_ln("Category does not exist, please enter one of "
+                              "the following categories:", type="error")
+                for cat in AURSync.CATEGORIES[2:]:
+                    slurpy.write_ln(cat)
+
+                sys.exit(1)
+
+        slurpy.login()
+        slurpy.upload()
     else:
-        AURSync(opts, args).run()
+        if opts.update and opts.download:
+            updates = [] # holds all available updates
+
+            try:
+                if opts.target_dir is not None:
+                    os.chdir(opts.target_dir)
+            except OSError:
+                slurpy.write_ln(self.opts.target_dir, "does not exist or is not",
+                              "a directory", type="error")
+                sys.exit(1)
+
+            for pkg in slurpy.update():
+                updates.append(pkg[AURSync.NAME]) 
+
+            if updates == []:
+                slurpy.write_ln("No updates available")
+            else:
+                slurpy.args = updates
+                slurpy.write_ln("Downloading updates...", type="info")
+                slurpy.download()
+        elif opts.info:
+            slurpy.info()
+        elif opts.search:
+            slurpy.search()
+        elif opts.update:
+            slurpy.update()
+        elif opts.download:
+            slurpy.download()
+        else:
+            slurpy.write_ln(__doc__)
+
 
 # vim:sw=4:ts=4:sts=4:
