@@ -322,11 +322,9 @@ class SlurpyFrontEnd():
                 continue
             except FileExistsError, e:
                 self.write_ln(e.fname, type="error")
-                self.write_ln("Pass -f to force this operation.")
                 continue
             except DirectoryExistsError, e:
                 self.write_ln(e.dir, type="error")
-                self.write_ln("Pass -f to force this operation.")
                 continue
 
             if pkg is not None:
@@ -349,11 +347,9 @@ class SlurpyFrontEnd():
                         continue
                     except FileExistsError, e:
                         self.write_ln(e.fname, type="error")
-                        self.write_ln("Pass -f to force this operation.")
                         continue
                     except DirectoryExistsError, e:
                         self.write_ln(e.dir, type="error")
-                        self.write_ln("Pass -f to force this operation.")
                         continue
 
                     if dpkg is not None:
@@ -865,10 +861,6 @@ if __name__ == '__main__':
 
     opts, args = parser.parse_args()
 
-#     if 'pycurl' in sys.modules and opts.push: 
-#         AURPush(opts, args).run() 
-#     else: 
-#         AURSync(opts, args).run() 
     slurpy = SlurpyFrontEnd(opts,args)
 
     if 'pycurl' in sys.modules and opts.push:
@@ -891,9 +883,12 @@ if __name__ == '__main__':
                 if opts.target_dir is not None:
                     os.chdir(opts.target_dir)
             except OSError:
-                slurpy.write_ln(self.opts.target_dir, "does not exist or is not",
+                slurpy.write_ln(opts.target_dir, "does not exist or is not",
                               "a directory", type="error")
                 sys.exit(1)
+
+            slurpy.write("Downloading updates to ")
+            slurpy.write_ln(os.getcwd(), color="green")
 
             for pkg in slurpy.update():
                 updates.append(pkg[AURSync.NAME]) 
@@ -902,7 +897,6 @@ if __name__ == '__main__':
                 slurpy.write_ln("No updates available")
             else:
                 slurpy.args = updates
-                slurpy.write_ln("Downloading updates...", type="info")
                 slurpy.download()
         elif opts.info:
             slurpy.info()
