@@ -156,9 +156,10 @@ class Slurpy():
                 else:
                     setattr(self, col.upper(), "\033[1;m")
             else:
+                ansi_col = opts.colors[col]
                 if opts.use_color:
                     setattr(self, col.upper(), 
-                            "\033[3" + str(ansi_colors.index(col)) + "m")
+                            "\033[0;3" + str(ansi_colors.index(ansi_col)) + "m")
                 else:
                     setattr(self, col.upper(), "\033[3;m")
 
