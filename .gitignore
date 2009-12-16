@@ -1,2 +1,4 @@
 *.swp
 test
+*.pyc
+slurpy.egg-info
