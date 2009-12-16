@@ -151,7 +151,10 @@ class Slurpy():
             if opts.colors[col][:4] == "bold":
                 ansi_col = opts.colors[col][4:]
                 if opts.use_color:
-                    setattr(self, col.upper(), 
+                    if ansi_col == "":
+                        setattr(self, col.upper(), "\033[1m")
+                    else:
+                        setattr(self, col.upper(),
                             "\033[1;3" + str(ansi_colors.index(ansi_col)) + "m")
                 else:
                     setattr(self, col.upper(), "\033[1;m")
