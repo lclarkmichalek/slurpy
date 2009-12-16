@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2009-12-15 16:32
+# MODIFIED: 2009-12-16 09:48
 
 VERSION = '3.0.0'
 
@@ -168,7 +168,7 @@ class Slurpy():
             try:
                 pkgs.extend(self.aur.search(arg))
             except AurRpcError, e:
-                print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)
+                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
                 continue
 
         if pkgs == []:
@@ -209,7 +209,7 @@ class Slurpy():
             try:
                 pkg = self.aur.info(arg)
             except AurRpcError, e:
-                print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)
+                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
                 sys.exit(1)
 
             if pkg[self.aur.OUT_OF_DATE] == '0':
@@ -271,10 +271,10 @@ class Slurpy():
             try:
                 pkg, deps = self.aur.download(arg)
             except AurRpcError, e:
-                print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)
+                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
                 continue
             except AurIOError, e:
-                print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)
+                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
                 continue
 
             if pkg is not None:
@@ -293,7 +293,7 @@ class Slurpy():
                     try:
                         dpkg, ddeps = self.aur.download(dep, dledpkgs)
                     except AurRpcError, e:
-                        print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)
+                        print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
                         continue
                     except AurIOError, e:
                         print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)

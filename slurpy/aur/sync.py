@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2009-12-15 13:45
+# MODIFIED: 2009-12-16 09:08
 
 VERSION = '3.0.0'
 
@@ -26,7 +26,9 @@ except ImportError:
 
 from aur import AUR
 
+
 # utility functions
+
 def json_decode(url):
     """Open <url> and decode the json response"""
     request = urllib2.Request(url)
@@ -58,6 +60,9 @@ def strip_slashes(str):
     if 'cjson' in sys.modules:
         return str.replace('\/', '/')
     return str
+
+
+# class definitions
 
 class Sync(AUR):
 
@@ -152,8 +157,7 @@ class Sync(AUR):
         return(fname, None)
             
     def get_depends(self, pkgname):
-        """stub"""
-        # download deps
+        """Returns a list of (make)depends for pkgname"""
         if self.opts.download > 1:
             fd = open('%s/%s/PKGBUILD' % (self.opts.target_dir, pkgname), 'r')
             pkgb = fd.read()
@@ -186,13 +190,6 @@ class Sync(AUR):
         if json['type'] == 'error':
             raise AurRpcError(json['results'])
         return json['results']
-
-    def run(self):
-        """Main processing for AURSync.
-
-        Handles all function dispatching and pre/post result output.
-        """
-        pass
 
     def search(self, pkgname):
         """Search the AUR for <self.args> and print results to the screen"""
