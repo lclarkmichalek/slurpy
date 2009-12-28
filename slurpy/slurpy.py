@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2009-12-16 09:48
+# MODIFIED: 2009-12-28 14:42
 
 VERSION = '3.0.0'
 
@@ -235,7 +235,7 @@ class Slurpy():
             print "{0}URL             : {1}{2}".format(self.RESET, 
                         self.CYAN, strip_slashes(pkg[self.aur.URL]))
 
-            print "{0}AUR Page        : {1}{2}/packages.php?ID={2}".format(
+            print "{0}AUR Page        : {1}{2}/packages.php?ID={3}".format(
                         self.RESET, self.CYAN, self.aur.AUR_URL, 
                         pkg[self.aur.ID])
 
@@ -351,7 +351,7 @@ class Slurpy():
         pkgs = self.aur.update()
 
         if pkgs == []:
-            print "No updates available"
+            sys.exit(1) # mimic pacman
         
         for pkg in pkgs:
             if not self.opts.download:
@@ -469,7 +469,7 @@ def main():
                 updates.append(pkg[Sync.NAME]) 
 
             if updates == []:
-                print "No updates available"
+                sys.exit(1) # mimic pacman
             else:
                 slurpy.args = updates
                 slurpy.download()
