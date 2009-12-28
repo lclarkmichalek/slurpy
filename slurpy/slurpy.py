@@ -125,7 +125,7 @@ def read_config():
             'verbose': VERBOSE,
             }
 
-class Slurpy():
+class Slurpy(object):
     """
     Handles all output pertaining to packages returned by the AUR classes
 

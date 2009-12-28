@@ -5,7 +5,7 @@
 # CREATED:  2009-12-15 09:32
 # MODIFIED: 2009-12-15 09:34
 
-class AUR():
+class AUR(object):
     
     """ Main AUR class
 
