@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # slurpy.py - Defines the Slurpy AUR front end class
 #
 # Randy Morris <randy@rsontech.net>
@@ -11,6 +12,7 @@ import os
 from optparse import OptionParser
 import re
 import sys
+import operator
 
 from aur.sync import *
 
@@ -123,7 +125,7 @@ def read_config():
             'verbose': VERBOSE,
             }
 
-class Slurpy():
+class Slurpy(object):
     """
     Handles all output pertaining to packages returned by the AUR classes
 
@@ -179,19 +181,18 @@ class Slurpy():
             return
 
         # sort
-        spkgs = sorted(pkgs, key=lambda k: k[self.aur.NAME])
-        del pkgs
+        pkgs.sort(key=operator.itemgetter(self.aur.NAME))
 
         # remove dups -- note: extra list traversal, but imo it's worth it
         i = 0
-        for pkg in spkgs:
-            if pkg == spkgs[i]: 
+        for pkg in pkgs:
+            if pkg == pkgs[i]: 
                 continue
             i += 1
-            spkgs[i] = pkg
-        del spkgs[i+1:]
+            pkgs[i] = pkg
+        del pkgs[i+1:]
 
-        for pkg in spkgs:
+        for pkg in pkgs:
             if self.opts.quiet:
                 print "{0}{1}{2}".format(self.WHITE, pkg[self.NAME], self.RESET)
             else:
@@ -484,4 +485,6 @@ def main():
         else:
             print __doc__
 
+if __name__ == '__main__':
+    main()
 # vim:sw=4:ts=4:sts=4:
