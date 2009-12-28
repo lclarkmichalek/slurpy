@@ -1,3 +1,4 @@
+#!/usr/bin/env python
 # slurpy.py - Defines the Slurpy AUR front end class
 #
 # Randy Morris <randy@rsontech.net>
@@ -484,4 +485,6 @@ def main():
         else:
             print __doc__
 
+if __name__ == '__main__':
+    main()
 # vim:sw=4:ts=4:sts=4:
