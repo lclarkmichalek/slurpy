@@ -118,7 +118,7 @@ class Sync(AUR):
         """
 
         if pkgname in ignore:
-            return(none, [])
+            return(None, [])
 
         if self.in_sync_db(pkgname) != False:
             return(None, [pkgname])
