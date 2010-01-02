@@ -321,6 +321,7 @@ class AURSync(Slurpy):
             self.args.append(arg.replace(" ", "%20"))
 
         # enable testing repo if enabled on the machine
+        conf = None
         try:
             fd = open(self.PACMAN_CONF, 'r')
             conf = fd.read()
@@ -329,7 +330,7 @@ class AURSync(Slurpy):
             self.write_ln("Error reading pacman.conf, testing repo will"
                           "remain disabled", type="info")
 
-        if re.search('^\s*\[testing\]', conf, re.M):
+        if conf and re.search('^\s*\[testing\]', conf, re.M):
             self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
             self.write_ln("Testing repo enabled", type="debug")
 
