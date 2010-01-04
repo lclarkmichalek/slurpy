@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-04 12:48
+# MODIFIED: 2010-01-04 12:50
 
 VERSION = '3.0.0'
 
@@ -409,7 +409,7 @@ class Slurpy(object):
                   "Bad username or password. Please try again." 
             sys.exit(1)
 
-    def upload():
+    def upload(self):
         for arg in self.args:
             if not os.path.isfile(arg):
                 print "{0}error:{1}{2}".format(self.RED, self.RESET, arg), \
