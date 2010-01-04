@@ -4,7 +4,7 @@
 #
 #
 # CREATED:  
-# MODIFIED: 2009-12-15 10:43
+# MODIFIED: 2010-01-03 21:48
 
 import os
 import sys
@@ -13,6 +13,7 @@ from cStringIO import StringIO
 
 import pycurl
 from aur import AUR
+from sync import Sync
 
 class Push(AUR):
     
@@ -62,7 +63,7 @@ class Push(AUR):
 
         data = [
             ('pkgsubmit', '1'),
-            ('category', '%s' % AURSync.CATEGORIES.index(self.opts.category)),
+            ('category', '%s' % Sync.CATEGORIES.index(self.opts.category)),
             ('pfile', (pycurl.FORM_FILE, fname))]
 
         self.curl.setopt(pycurl.HTTPPOST, data)
