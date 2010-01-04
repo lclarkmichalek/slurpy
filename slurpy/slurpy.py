@@ -4,13 +4,15 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2009-12-28 14:42
+# MODIFIED: 2010-01-04 12:39
 
 VERSION = '3.0.0'
 
+import imp
 import os
 from optparse import OptionParser
 import re
+import stat
 import sys
 import operator
 
@@ -82,48 +84,69 @@ else:
 # utility functions
 def read_config():
     """Read in the slurpy runtime config to set default options."""
+
+    # configuration options, sane defaults
+    config_opts = {
+        "aur_user" : None,
+        "colors": {
+            "red":     "boldred", 
+            "green":   "boldgreen",
+            "yellow":  "boldyellow", 
+            "blue":    "boldblue",
+            "magenta": "boldmagenta", 
+            "cyan":    "boldcyan",
+            "white":   "boldwhite",
+        },
+        "cookie_file": "~/.slurpy.aurcookie",
+        "target_dir": ".",
+        "use_color": False,
+        "verbose": 0,
+    }
+    
     home = os.getenv('HOME')
     xdg_config_home = os.getenv('XDG_CONFIG_HOME')
     if xdg_config_home is None:
         xdg_config_home = "%s/.config/" % home
 
-    # configuration options, sane defaults
-    AUR_USER = None
-    COOKIE_FILE = "~/.slurpy.aurcookie"
-    TARGET_DIR = "."
-    USE_COLOR = False
-    VERBOSE = 0
-    COLORS = {"red":     "boldred", 
-              "green":   "boldgreen",
-              "yellow":  "boldyellow", 
-              "blue":    "boldblue",
-              "magenta": "boldmagenta", 
-              "cyan":    "boldcyan",
-              "white":   "boldwhite",
-             }
-    
-    conf = None
-    if os.path.exists(xdg_config_home + "/slurpy/slurpyrc"):
-        conf = open(xdg_config_home + "/slurpy/slurpyrc")
-    elif os.path.exists(home + "/.slurpyrc"):
-        conf = open(home + "/.slurpyrc")
+    xdg_slurpyrc_path = os.path.join(xdg_config_home, "slurpy/slurpyrc")
+    home_slurpyrc_path = os.path.join(home, ".slurpyrc")
+    config_path = None
 
-    if conf is not None:
+    if os.path.exists(xdg_slurpyrc_path):
+        config_path = xdg_slurpyrc_path
+    elif os.path.exists(home_slurpyrc_path):
+        config_path = home_slurpyrc_path
+
+    # if there's a config file, load it as a module
+    if config_path is not None:
+        
+        # ensure config file can't be tweaked by another user
+        if os.stat(config_path)[stat.ST_MODE] & stat.S_IWGRP or \
+            os.stat(config_path)[stat.ST_MODE] & stat.S_IWOTH:
+            print "error: Permissions on %s must be 755 or less." % config_path
+            sys.exit(1)
+
         try:
-            exec(conf.read())
+            slurpyrc = imp.load_source("slurpyrc", config_path)
+            user_config = [x for x in slurpyrc.__dict__.items() \
+                            if x[0].isupper() and not x[0].startswith('_')]
+
+            for var, val in user_config:
+                var = var.lower()
+                if var not in config_opts:
+                    print "info: Ignoring unknown option %s" % (var)
+                else:
+                    config_opts[var] = val
+
         except (SyntaxError, NameError):
             print "error: There is a syntax error in your config file."
             print "Please correct this and try again."
             sys.exit(1)
 
-    return {
-            'color': USE_COLOR,
-            'colors': COLORS,
-            'cookie_file': COOKIE_FILE,
-            'target_dir': os.path.expanduser(TARGET_DIR),
-            'user': AUR_USER,
-            'verbose': VERBOSE,
-            }
+    for pathparm in ("cookie_file", "target_dir"):
+        config_opts[pathparm] = os.path.expanduser(config_opts[pathparm])
+
+    return config_opts
 
 class Slurpy(object):
     """
@@ -376,12 +399,12 @@ class Slurpy(object):
                     print "{0} {1}".format(pkgname, inst_ver)
         return pkgs
 
-    def login():
-        if self.opts.user is None:
-            self.opts.user = raw_input('User: ')
+    def login(self):
+        if self.opts.aur_user is None:
+            self.opts.aur_user = raw_input('User: ')
 
         password = getpass('Password: ')
-        if not slurpy.push.login(self.opts.user, passwd):
+        if not slurpy.push.login(self.opts.aur_user, passwd):
             print "{0}error:{1}".format(self.RED, self.RESET), \
                   "Bad username or password. Please try again." 
             sys.exit(1)
@@ -413,7 +436,7 @@ def main():
     parser = OptionParser(version=_version, conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
     parser.add_option('-c', '--color', action='store_true', dest="use_color",
-                            default=conf['color'])
+                            default=conf['use_color'])
     parser.add_option('-f', '--force', action='store_true')
     parser.add_option('-h', '--help', action='store_true')
     parser.add_option('-i', '--info', action='store_true')
@@ -429,9 +452,10 @@ def main():
     if 'pycurl' in sys.modules:
         parser.add_option('-C', '--category', action='store', default=None)
         parser.add_option('-P', '--push', action='store_true', default=False)
-        parser.add_option('-U', '--user', action='store', default=conf['user'])
+        parser.add_option('-U', '--user', action='store', dest='aur_user',
+                            default=conf['aur_user'])
         parser.add_option('', '--cookie-file', action='store',
-                              default=conf['cookie_file'])
+                            default=conf['cookie_file'])
 
     opts, args = parser.parse_args()
     setattr(opts, 'colors', conf['colors'])
