@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-04 12:39
+# MODIFIED: 2010-01-04 12:46
 
 VERSION = '3.0.0'
 
@@ -404,7 +404,7 @@ class Slurpy(object):
             self.opts.aur_user = raw_input('User: ')
 
         password = getpass('Password: ')
-        if not slurpy.push.login(self.opts.aur_user, passwd):
+        if not self.aur.login(self.opts.aur_user, passwd):
             print "{0}error:{1}".format(self.RED, self.RESET), \
                   "Bad username or password. Please try again." 
             sys.exit(1)
