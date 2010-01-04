@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2009-12-16 09:08
+# MODIFIED: 2010-01-04 10:39
 
 VERSION = '3.0.0'
 
@@ -100,6 +100,7 @@ class Sync(AUR):
             self.args.append(arg.replace(" ", "%20"))
 
         # enable testing repo if enabled on the machine
+        conf = None
         try:
             fd = open(self.PACMAN_CONF, 'r')
             conf = fd.read()
@@ -108,7 +109,7 @@ class Sync(AUR):
             # error reading pacman.conf, testing repo disabled by default
             pass
         else:
-            if re.search('^\s*\[testing\]', conf, re.M):
+            if conf and re.search('^\s*\[testing\]', conf, re.M):
                 self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
 
     def download(self, pkgname, ignore=[]):
