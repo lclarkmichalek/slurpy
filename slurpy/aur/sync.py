@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2009-12-16 09:08
+# MODIFIED: 2010-01-04 07:09
 
 VERSION = '3.0.0'
 
@@ -34,6 +34,7 @@ def json_decode(url):
     request = urllib2.Request(url)
     request.add_header("Accept-encoding", "gzip")
     request.add_header("User-agent", "slurpy/%s" % VERSION)
+    usock = None
     try:
         usock = urllib2.urlopen(request)
         data = usock.read()
