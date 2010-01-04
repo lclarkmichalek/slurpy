@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-04 12:46
+# MODIFIED: 2010-01-04 12:48
 
 VERSION = '3.0.0'
 
@@ -465,7 +465,7 @@ def main():
     if 'pycurl' in sys.modules and opts.push:
         if opts.category is not None:
             if opts.category not in Sync.CATEGORIES:
-                print "{0}error:{1}".format(Slurpy.RED, Slurpy.RESET), \
+                print "{0}error:{1}".format(slurpy.RED, slurpy.RESET), \
                       "Category does not exist, please enter one of", \
                       "the following categories:"
                 for cat in Sync.CATEGORIES[2:]:
@@ -483,12 +483,12 @@ def main():
                 if opts.target_dir is not None:
                     os.chdir(opts.target_dir)
             except OSError:
-                print "{0}error:{1}{2}".format(Slurpy.RED, Slurpy.RESET, \
+                print "{0}error:{1}{2}".format(slurpy.RED, slurpy.RESET, \
                       opts.target_dir), "does not exist or is not a directory"
                 sys.exit(1)
 
-            print "Downloading updates to {0}{1}{2}".format(Slurpy.GREEN,
-                  os.getcwd(), Slurpy.RESET)
+            print "Downloading updates to {0}{1}{2}".format(slurpy.GREEN,
+                  os.getcwd(), slurpy.RESET)
 
             for pkg in slurpy.update():
                 updates.append(pkg[Sync.NAME]) 
