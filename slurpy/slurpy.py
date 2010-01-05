@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-04 12:50
+# MODIFIED: 2010-01-04 20:39
 
 VERSION = '3.0.0'
 
@@ -362,7 +362,7 @@ class Slurpy(object):
                     print "   {0}{1}".format(self.WHITE, pkg)
         if deps:
             if len(deps) == 1 and not pkgs:
-                print "{0}{1}{2} is available in {3}pacman repos{4}:".format(
+                print "{0}{1}{2} is available in {3}pacman repos{4}".format(
                             self.WHITE, deps[0], self.RESET, self.YELLOW,
                             self.RESET)
             else:
