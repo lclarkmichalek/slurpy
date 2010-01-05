@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2010-01-04 13:29
+# MODIFIED: 2010-01-05 07:53
 
 VERSION = '3.0.0'
 
@@ -170,7 +170,7 @@ class Sync(AUR):
                                 pkgb, re.S)
             for group in deptup:
                 for dep in group[1].split():
-                    dep = re.findall('(.[^<>=]*).*', dep)[0].strip("'")
+                    dep = re.findall('(.[^<>=]*).*', dep)[0].strip("'").strip('"')
                     deps.append(dep)
 
             return deps
