@@ -4,17 +4,18 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-04 20:50
+# MODIFIED: 2010-01-05 16:00
 
 VERSION = '3.0.0'
 
 import imp
 import os
+import operator
 from optparse import OptionParser
 import re
 import stat
+import subprocess
 import sys
-import operator
 
 from aur.sync import *
 
@@ -148,6 +149,17 @@ def read_config():
 
     return config_opts
 
+def fold(text, width=80, pad=0):
+    output = ''
+    for line in text.split('\n'):
+        while len(line) > width:
+            pos = line[:width].rfind(' ')
+            output = output + line[:pos] + '\n'
+            line = " "*pad + line[pos+1:]
+        output = output + line
+
+    return output
+
 class Slurpy(object):
     """
     Handles all output pertaining to packages returned by the AUR classes
@@ -192,6 +204,10 @@ class Slurpy(object):
                     setattr(self, col.upper(), "\033[3;m")
 
     def search(self):
+        stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
+        dim = stty.communicate([0])[0]
+        win_width = int(dim.split()[1])
+
         pkgs = []
         for arg in self.args:
             try:
@@ -229,10 +245,15 @@ class Slurpy(object):
                     print "{0}{1}{2}".format(
                             self.RED, pkg[self.aur.VERSION], self.RESET)
 
-                print "   {0}".format(strip_slashes(pkg[self.aur.DESCRIPTION]))
+                desc = strip_slashes(pkg[self.aur.DESCRIPTION])
+                print fold("    {0}".format(desc), win_width, 4)
         
 
     def info(self):
+        stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
+        dim = stty.communicate([0])[0]
+        win_width = int(dim.split()[1])
+
         for arg in self.args:
             try:
                 pkg = self.aur.info(arg)
@@ -278,8 +299,9 @@ class Slurpy(object):
             else:
                 print "{0}{1}".format(self.GREEN, out_of_date)
 
-            print "{0}Description     : {1}\n".format(self.RESET, 
-                        strip_slashes(pkg[self.aur.DESCRIPTION]))
+            desc = strip_slashes(pkg[self.aur.DESCRIPTION])
+            print fold("{0}Description     : {1}".format(self.RESET, desc), 
+                       win_width, 18) + '\n'
 
     def download(self):
         dledpkgs = [] # holds list of downloaded pkgs
