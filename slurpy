@@ -433,7 +433,7 @@ class AURSync(Slurpy):
                                     pkgb, re.S)
                 for group in deptup:
                     for dep in group[1].split():
-                        dep = re.findall('(.[^<>=]*).*', dep)[0].strip("'")
+                        dep = re.findall('(.[^<>=]*).*', dep)[0].strip("'").strip('"')
                         deps.append(dep)
 
                 # download dependencies, but ignore already downloaded pkgs
