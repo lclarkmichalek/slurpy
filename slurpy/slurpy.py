@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-05 16:00
+# MODIFIED: 2010-01-05 16:05
 
 VERSION = '3.0.0'
 
@@ -204,9 +204,13 @@ class Slurpy(object):
                     setattr(self, col.upper(), "\033[3;m")
 
     def search(self):
-        stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
-        dim = stty.communicate([0])[0]
-        win_width = int(dim.split()[1])
+        try:
+            stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
+        except OSError:
+            win_width = 80
+        else:
+            dim = stty.communicate([0])[0]
+            win_width = int(dim.split()[1])
 
         pkgs = []
         for arg in self.args:
@@ -250,9 +254,13 @@ class Slurpy(object):
         
 
     def info(self):
-        stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
-        dim = stty.communicate([0])[0]
-        win_width = int(dim.split()[1])
+        try:
+            stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
+        except OSError:
+            win_width = 80
+        else:
+            dim = stty.communicate([0])[0]
+            win_width = int(dim.split()[1])
 
         for arg in self.args:
             try:
