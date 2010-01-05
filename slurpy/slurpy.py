@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-04 20:39
+# MODIFIED: 2010-01-04 20:50
 
 VERSION = '3.0.0'
 
@@ -282,14 +282,6 @@ class Slurpy(object):
                         strip_slashes(pkg[self.aur.DESCRIPTION]))
 
     def download(self):
-        try:
-            if self.opts.target_dir is not None:
-                os.chdir(self.opts.target_dir)
-        except OSError:
-            print "{0}error:{1} {2} does not exist or is not a directory".format(
-                        self.RED, self.RESET, self.opts.target_dir)
-            sys.exit(1)
-
         dledpkgs = [] # holds list of downloaded pkgs
         repodeps = [] # holds list of dependencies available in pacman repos
         for arg in self.args:
@@ -460,6 +452,16 @@ def main():
     opts, args = parser.parse_args()
     setattr(opts, 'colors', conf['colors'])
 
+    try:
+        if opts.target_dir is not None:
+            os.chdir(opts.target_dir)
+    except OSError:
+        print "{0}error:{1}{2}".format(slurpy.RED, slurpy.RESET, \
+              opts.target_dir), "does not exist or is not a directory"
+        sys.exit(1)
+
+    opts.target_dir = os.getcwd()
+
     slurpy = Slurpy(opts,args)
 
     if 'pycurl' in sys.modules and opts.push:
@@ -478,14 +480,6 @@ def main():
     else:
         if opts.update and opts.download:
             updates = [] # holds all available updates
-
-            try:
-                if opts.target_dir is not None:
-                    os.chdir(opts.target_dir)
-            except OSError:
-                print "{0}error:{1}{2}".format(slurpy.RED, slurpy.RESET, \
-                      opts.target_dir), "does not exist or is not a directory"
-                sys.exit(1)
 
             print "Downloading updates to {0}{1}{2}".format(slurpy.GREEN,
                   os.getcwd(), slurpy.RESET)
