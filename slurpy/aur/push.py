@@ -4,7 +4,7 @@
 #
 #
 # CREATED:  
-# MODIFIED: 2010-01-03 21:48
+# MODIFIED: 2010-01-06 13:52
 
 import os
 import sys
@@ -13,11 +13,10 @@ from cStringIO import StringIO
 
 import pycurl
 from aur import AUR
-from sync import Sync
 
 class Push(AUR):
     
-    """ Handles all push requests to the AUR """
+    """ Handles all uploads to the AUR """
 
     def __init__(self, opts, args):
 
@@ -54,16 +53,12 @@ class Push(AUR):
             return False
         return True
 
-    def run(self):
-        """ Main processing for AURPush """
-        pass
-
-    def upload(self, fname):
+    def upload(self, fname, category):
         """ Upload files in self.args to the aur """
 
         data = [
             ('pkgsubmit', '1'),
-            ('category', '%s' % Sync.CATEGORIES.index(self.opts.category)),
+            ('category', '%s' % self.CATEGORIES.index(category)),
             ('pfile', (pycurl.FORM_FILE, fname))]
 
         self.curl.setopt(pycurl.HTTPPOST, data)
@@ -94,7 +89,7 @@ class Push(AUR):
                 pkg = pkg[:idx]
                 
                 if pkg is not None:
-                    return True
+                    return pkg
         return False
 
 

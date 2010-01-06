@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-05 16:05
+# MODIFIED: 2010-01-06 14:04
 
 VERSION = '3.0.0'
 
@@ -150,6 +150,7 @@ def read_config():
     return config_opts
 
 def fold(text, width=80, pad=0):
+    """Wrap <text> at <width> characters.  Pad left side with <pad> spaces."""
     output = ''
     for line in text.split('\n'):
         while len(line) > width:
@@ -159,6 +160,7 @@ def fold(text, width=80, pad=0):
         output = output + line
 
     return output
+
 
 class Slurpy(object):
     """
@@ -172,10 +174,10 @@ class Slurpy(object):
         """Sets up colors and sets opts for the class"""
         self.opts = opts
         self.args = args
-        if opts.sync:
-            self.aur = Sync(opts, args)
-        else:
+        if opts.push:
             self.aur = Push(opts, args)
+        else:
+            self.aur = Sync(opts, args)
 
         ansi_colors = ["black","red","green","yellow","blue","magenta","cyan",
                        "white","foreground","gray","boldred","boldgreen",
@@ -426,7 +428,7 @@ class Slurpy(object):
             self.opts.aur_user = raw_input('User: ')
 
         password = getpass('Password: ')
-        if not self.aur.login(self.opts.aur_user, passwd):
+        if not self.aur.login(self.opts.aur_user, password):
             print "{0}error:{1}".format(self.RED, self.RESET), \
                   "Bad username or password. Please try again." 
             sys.exit(1)
@@ -434,20 +436,23 @@ class Slurpy(object):
     def upload(self):
         for arg in self.args:
             if not os.path.isfile(arg):
-                print "{0}error:{1}{2}".format(self.RED, self.RESET, arg), \
+                print "{0}error:{1}{2} ".format(self.RED, self.RESET, arg), \
                       "does not exist or is not a file."
                 sys.exit(1)
 
+            success = None
             try:
-                success = self.aur.upload(arg)
+                pkg = self.aur.upload(arg, self.opts.category)
             except AurUploadError, e:
-                print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value),
+                print "{0}error:{1} {2}: {3}".format(self.RED, self.RESET,
+                                                    e.fname, e.msg),
+                sys.exit(1)
 
-            if success:
+            if pkg:
                 print "{0}{1}{2} has been uploaded".format(self.WHITE, pkg,
                         self.RESET)
             else:
-                print "{0}error:{1}Unknown error.".format(self.RED, self.RESET),
+                print "{0}error:{1} Unknown error.".format(self.RED, self.RESET),
             
 
 # main processing 
@@ -483,7 +488,7 @@ def main():
     setattr(opts, 'colors', conf['colors'])
 
     try:
-        if opts.target_dir is not None:
+        if opts.target_dir is not None and not opts.push:
             os.chdir(opts.target_dir)
     except OSError:
         print "{0}error:{1}{2}".format(slurpy.RED, slurpy.RESET, \
@@ -495,15 +500,14 @@ def main():
     slurpy = Slurpy(opts,args)
 
     if 'pycurl' in sys.modules and opts.push:
-        if opts.category is not None:
-            if opts.category not in Sync.CATEGORIES:
-                print "{0}error:{1}".format(slurpy.RED, slurpy.RESET), \
-                      "Category does not exist, please enter one of", \
-                      "the following categories:"
-                for cat in Sync.CATEGORIES[2:]:
-                    print cat
+        if opts.category is None or \
+           opts.category not in slurpy.aur.CATEGORIES:
+            print "{0}error:{1} ".format(slurpy.RED, slurpy.RESET), \
+                  "Invalid category (-C, --category)\n\n", \
+                  "Please enter one of the following categories:\n"
 
-                sys.exit(1)
+            print fold(str(slurpy.aur.CATEGORIES[2:]), 80) + '\n'
+            sys.exit(1)
 
         slurpy.login()
         slurpy.upload()
@@ -515,7 +519,7 @@ def main():
                   os.getcwd(), slurpy.RESET)
 
             for pkg in slurpy.update():
-                updates.append(pkg[Sync.NAME]) 
+                updates.append(pkg[slurpy.NAME]) 
 
             if updates == []:
                 sys.exit(1) # mimic pacman

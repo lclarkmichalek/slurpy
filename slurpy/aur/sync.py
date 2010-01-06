@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2010-01-05 07:53
+# MODIFIED: 2010-01-06 14:14
 
 VERSION = '3.0.0'
 
@@ -53,26 +53,21 @@ def json_decode(url):
     except AttributeError:
         return Json.loads(data)
 
-def strip_slashes(str):
-    """Remove extraneous backslashes (\) from <str>"""
-    if str is None:
+def strip_slashes(text):
+    """Remove extraneous backslashes (\) from <text>"""
+    if text is None:
         return "None"
-    str = str.encode('UTF-8')
+    text = text.encode('UTF-8')
     if 'cjson' in sys.modules:
-        return str.replace('\/', '/')
-    return str
+        return text.replace('\/', '/')
+    return text
 
 
 # class definitions
 
 class Sync(AUR):
 
-    """ Handles all pull requests from the AUR """
-
-    PACMAN_CACHE = "/var/lib/pacman/local"
-    PACMAN_CONF = "/etc/pacman.conf"
-    PACMAN_REPOS = ['core', 'extra', 'community']
-    PACMAN_SYNC = "/var/lib/pacman/sync/"
+    """ Handles all requests from the AUR """
 
     # json constants
     ID = "ID"
@@ -86,10 +81,6 @@ class Sync(AUR):
     LICENSE = "License"
     VOTES = "NumVotes"
     OUT_OF_DATE = "OutOfDate"
-    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators",
-                  "games", "gnome", "i18n", "kde", "lib", "modules",
-                  "multimedia", "network", "office", "science", "system",
-                  "x11", "xfce", "kernels"]
 
 
     def __init__(self, opts, args):
