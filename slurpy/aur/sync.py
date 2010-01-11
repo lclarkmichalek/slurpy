@@ -86,23 +86,25 @@ class Sync(AUR):
     def __init__(self, opts, args):
         self.opts = opts
         self.args = []
-        
+ 
         # encode white space
         for arg in args:
             self.args.append(arg.replace(" ", "%20"))
 
-        # enable testing repo if enabled on the machine
+        # enable testing and community-testing repo if enabled on the machine
         conf = None
         try:
-            fd = open(self.PACMAN_CONF, 'r')
-            conf = fd.read()
-            fd.close()
+            with open(self.PACMAN_CONF, 'r') as fd:
+                conf = fd.read()
         except IOError:
             # error reading pacman.conf, testing repo disabled by default
+            # maybe we should raise instead?
             pass
-        else:
-            if conf and re.search('^\s*\[testing\]', conf, re.M):
-                self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
+        if conf:
+            if re.search('^\s*\[testing\]', conf, re.M):
+                self.PACMAN_REPOS.append('testing')
+            if re.search('^\s*\[community-testing\]', conf, re.M):
+                self.PACMAN_REPOS.append('community-testing')
 
     def download(self, pkgname, ignore=[]):
         """Downloads all packages in <self.args>
