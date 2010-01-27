@@ -23,9 +23,9 @@
 #                        MrElendig
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2009-10-06 12:12
+# MODIFIED: 2010-01-27 23:40
 
-VERSION = '2.1.5'
+VERSION = '2.1.5-dev'
 
 import glob
 import os
@@ -64,6 +64,8 @@ except ImportError:
                              operation for each package with an available update
 
  General options:
+      --ignore            comma seperated list of packages to ignore
+                             typically used together with -dd or -ud(d)
   -c, --color             use colored output
   -f, --force             overwrite existing files when dowloading
   -q, --quiet             show only package names in search/update results
@@ -100,6 +102,8 @@ else:
       --cookie-file       file to store AUR session information in
 
  General options:
+      --ignore            comma seperated list of packages to ignore
+                             typically used together with -dd or -ud(d)
   -c, --color             use colored output
   -f, --force             overwrite existing files when dowloading
   -q, --quiet             show only package names in search/update results
@@ -437,7 +441,7 @@ class AURSync(Slurpy):
                         deps.append(dep)
 
                 # download dependencies, but ignore already downloaded pkgs
-                pkgs, deps = AURSync(self.opts, deps).download(dledpkgs)
+                pkgs, deps = AURSync(self.opts, deps).download(dledpkgs+ignore)
 
                 if pkgs != []:
                     dledpkgs.extend(pkgs)
@@ -533,7 +537,7 @@ class AURSync(Slurpy):
             self.args = updates
             self.write_ln("Downloading updates...", type="info")
 
-            self.display_result(*self.download())
+            self.display_result(*self.download(self.opts.ignore_list))
 
         elif self.opts.download:
             try:
@@ -544,7 +548,7 @@ class AURSync(Slurpy):
                               "a directory", type="error")
                 sys.exit(1)
 
-            self.display_result(*self.download())
+            self.display_result(*self.download(self.opts.ignore_list))
 
         elif self.opts.info:
             self.info()
@@ -756,6 +760,13 @@ class AURPush(Slurpy):
 # main processing 
 if __name__ == '__main__':
 
+    def store_csv_to_list(option, opt_str, value, parser):
+        """ Callback for the parser: takes a csv string
+            and converts/stores it as a list to dest. 
+            Note: type must be set to 'string' """
+        value = value.split(',')
+        setattr(parser.values, option.dest, value)
+
     conf = read_config()
 
     _version = ' '.join(("%prog",VERSION))
@@ -774,6 +785,8 @@ if __name__ == '__main__':
     parser.add_option('-v', '--verbose', action='count',
                             default=conf['verbose'])
     parser.add_option('-S', '--sync', action='store_true', default=True)
+    parser.add_option('--ignore', action='callback', callback=store_csv_to_list,
+                            type='string', default=[], dest='ignore_list')
 
     if 'pycurl' in sys.modules:
         parser.add_option('-C', '--category', action='store', default=None)
