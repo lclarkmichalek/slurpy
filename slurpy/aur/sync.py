@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2010-01-06 14:14
+# MODIFIED: 2010-01-29 18:45
 
 VERSION = '3.0.0'
 
@@ -173,13 +173,11 @@ class Sync(AUR):
 
         Returns true if found, otherwise false
         """
-        # regex assumes $pkgname-$pkgver-$pkgrel
-        r_pkg = re.compile('^' + name + '-[^-]+-[^-]+$')
-
         for repo in self.PACMAN_REPOS:
             syncd = self.PACMAN_SYNC + repo
             for path in glob.glob("%s/%s-*" % (syncd, name)):
-                if r_pkg.match(os.path.basename(path)):
+                # We assume that the dirname is $pkgname-$pkgver-$pkgrel
+                if os.path.basename(path.rsplit('-', 2)[0]) == name:
                     return repo
         return False
 
