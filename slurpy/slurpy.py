@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-06 14:04
+# MODIFIED: 2010-01-26 08:37
 
 VERSION = '3.0.0'
 
@@ -486,6 +486,9 @@ def main():
 
     opts, args = parser.parse_args()
     setattr(opts, 'colors', conf['colors'])
+
+    if not getattr(opts, 'push', False):
+        setattr(opts, 'push', False)
 
     try:
         if opts.target_dir is not None and not opts.push:
