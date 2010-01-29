@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:32
-# MODIFIED: 2010-01-06 14:16
+# MODIFIED: 2010-01-29 13:11
 
 class AUR(object):
     
@@ -17,7 +17,7 @@ class AUR(object):
     SEARCH_URL = AUR_URL + "rpc.php?type=search&arg="
     SUBMIT_URL = AUR_URL + "pkgsubmit.php"
     
-    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators",
+    CATEGORIES = [None, "None", "daemons", "devel", "editors", "emulators",
                   "games", "gnome", "i18n", "kde", "lib", "modules",
                   "multimedia", "network", "office", "science", "system",
                   "x11", "xfce", "kernels"]

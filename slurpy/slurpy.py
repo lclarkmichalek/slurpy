@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-26 08:37
+# MODIFIED: 2010-01-29 13:13
 
 VERSION = '3.0.0'
 
@@ -503,8 +503,9 @@ def main():
     slurpy = Slurpy(opts,args)
 
     if 'pycurl' in sys.modules and opts.push:
-        if opts.category is None or \
-           opts.category not in slurpy.aur.CATEGORIES:
+        if opts.category is None:
+            opts.category = "None"
+        elif opts.category not in slurpy.aur.CATEGORIES:
             print "{0}error:{1} ".format(slurpy.RED, slurpy.RESET), \
                   "Invalid category (-C, --category)\n\n", \
                   "Please enter one of the following categories:\n"
