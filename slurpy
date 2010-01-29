@@ -23,7 +23,7 @@
 #                        MrElendig
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2010-01-29 17:30
+# MODIFIED: 2010-01-29 19:10
 
 VERSION = '2.1.5-dev'
 
@@ -324,19 +324,21 @@ class AURSync(Slurpy):
         for arg in args:
             self.args.append(arg.replace(" ", "%20"))
 
-        # enable testing repo if enabled on the machine
+        # enable testing and community-testing repo if enabled on the machine
         conf = None
         try:
-            fd = open(self.PACMAN_CONF, 'r')
-            conf = fd.read()
-            fd.close()
+            with open(self.PACMAN_CONF, 'r') as fd:
+                conf = fd.read()
         except IOError:
-            self.write_ln("Error reading pacman.conf, testing repo will"
-                          "remain disabled", type="info")
-
-        if conf and re.search('^\s*\[testing\]', conf, re.M):
-            self.PACMAN_REPOS = ['testing'] + self.PACMAN_REPOS
-            self.write_ln("Testing repo enabled", type="debug")
+            self.write_ln("Error reading pacman.conf, [testing] and"
+                          "[community-testing] will remain disabled", type="info")
+        if conf:
+            if re.search('^\s*\[testing\]', conf, re.M):
+                self.PACMAN_REPOS.append('testing')
+                self.write_ln("[testing] repo enabled", type="debug")
+            if re.search('^\s*\[community-testing\]', conf, re.M):
+                self.PACMAN_REPOS.append('community-testing')
+                self.write_ln("[community-testing] repo enabled", type="debug")
 
     def display_result(self, pkgs, deps):
         """Print a nicely formated result of <pkgs> and <deps>"""
