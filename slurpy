@@ -23,7 +23,7 @@
 #                        MrElendig
 #
 # CREATED:  2008-08-22 18:41
-# MODIFIED: 2010-01-27 23:40
+# MODIFIED: 2010-01-29 17:30
 
 VERSION = '2.1.5-dev'
 
@@ -460,13 +460,11 @@ class AURSync(Slurpy):
 
         Returns true if found, otherwise false
         """
-        # regex assumes $pkgname-$pkgver-$pkgrel
-        r_pkg = re.compile('^' + name + '-[^-]+-[^-]+$')
- 
         for repo in self.PACMAN_REPOS:
             syncd = self.PACMAN_SYNC + repo
             for path in glob.glob("%s/%s-*" % (syncd, name)):
-                if r_pkg.match(os.path.basename(path)):
+                # We assume that the dirname is $pkgname-$pkgver-$pkgrel
+                if os.path.basename(path.rsplit('-', 2)[0]) == name:
                     return repo
         return False
 
