@@ -309,7 +309,7 @@ class AURSync(Slurpy):
     LICENSE = "License"
     VOTES = "NumVotes"
     OUT_OF_DATE = "OutOfDate"
-    CATEGORIES = [None, None, "daemons", "devel", "editors", "emulators",
+    CATEGORIES = [None, "None", "daemons", "devel", "editors", "emulators",
                   "games", "gnome", "i18n", "kde", "lib", "modules",
                   "multimedia", "network", "office", "science", "system",
                   "x11", "xfce", "kernels"]
