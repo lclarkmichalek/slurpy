@@ -704,7 +704,7 @@ class AURPush(Slurpy):
             opts.category = "None"
 
         if opts.category not in AURSync.CATEGORIES:
-            self.write_ln("Category does not exist, please enter one of "
+            self.write_ln("Category (-C, --category) does not exist, please enter one of "
                           "the following categories:", type="error")
             for cat in AURSync.CATEGORIES[2:]:
                 self.write_ln(cat)
