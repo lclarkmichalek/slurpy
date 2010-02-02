@@ -700,14 +700,16 @@ class AURPush(Slurpy):
 
     def run(self):
         """ Main processing for AURPush """
-        if opts.category is not None:
-            if opts.category not in AURSync.CATEGORIES:
-                self.write_ln("Category does not exist, please enter one of "
-                              "the following categories:", type="error")
-                for cat in AURSync.CATEGORIES[2:]:
-                    self.write_ln(cat)
+        if opts.category is None:
+            opts.category = "None"
 
-                sys.exit(1)
+        if opts.category not in AURSync.CATEGORIES:
+            self.write_ln("Category does not exist, please enter one of "
+                          "the following categories:", type="error")
+            for cat in AURSync.CATEGORIES[2:]:
+                self.write_ln(cat)
+
+            sys.exit(1)
 
         self.login()
         self.upload()
