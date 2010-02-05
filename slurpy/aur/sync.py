@@ -3,7 +3,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:29
-# MODIFIED: 2010-01-29 18:45
+# MODIFIED: 2010-02-04 19:08
 
 VERSION = '3.0.0'
 
@@ -31,6 +31,9 @@ from aur import AUR
 
 def json_decode(url):
     """Open <url> and decode the json response"""
+
+    url = "http://" + urllib.quote(url[7:], "/?=&")
+
     request = urllib2.Request(url)
     request.add_header("Accept-encoding", "gzip")
     request.add_header("User-agent", "slurpy/%s" % VERSION)
