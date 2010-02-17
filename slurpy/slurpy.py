@@ -36,6 +36,8 @@ except ImportError:
                              operation for each package with an available update
 
  General options:
+      --ignore            comma seperated list of packages to ignore
+                                    typically used together with -dd or -ud(d)
   -c, --color             use colored output
   -f, --force             overwrite existing files when dowloading
   -q, --quiet             show only package names in search/update results
@@ -72,6 +74,8 @@ else:
       --cookie-file       file to store AUR session information in
 
  General options:
+      --ignore            comma seperated list of packages to ignore
+                                    typically used together with -dd or -ud(d)
   -c, --color             use colored output
   -f, --force             overwrite existing files when dowloading
   -q, --quiet             show only package names in search/update results
@@ -317,6 +321,8 @@ class Slurpy(object):
         dledpkgs = [] # holds list of downloaded pkgs
         repodeps = [] # holds list of dependencies available in pacman repos
         for arg in self.args:
+            if arg in self.opts.ignore_list:
+                continue
             if arg in repodeps: 
                 continue
 
@@ -343,7 +349,7 @@ class Slurpy(object):
 
                     # download dependencies, but ignore already downloaded pkgs
                     try:
-                        dpkg, ddeps = self.aur.download(dep, dledpkgs)
+                        dpkg, ddeps = self.aur.download(dep, dledpkgs+self.opts.ignore_list)
                     except AurRpcError, e:
                         print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
                         continue
@@ -459,6 +465,13 @@ class Slurpy(object):
 def main():
     conf = read_config()
 
+    def store_csv_to_list(option, opt_str, value, parser):
+        """ Callback for the parser: takes a csv string
+            and converts/stores it as a list to dest. 
+            Note: type must be set to 'string' """
+        value = value.split(',')
+        setattr(parser.values, option.dest, value)
+
     _version = ' '.join(("%prog",VERSION))
     parser = OptionParser(version=_version, conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
@@ -475,6 +488,8 @@ def main():
     parser.add_option('-v', '--verbose', action='count',
                             default=conf['verbose'])
     parser.add_option('-S', '--sync', action='store_true', default=True)
+    parser.add_option('--ignore', action='callback', callback=store_csv_to_list,
+                            type='string', default=[], dest='ignore_list')
 
     if 'pycurl' in sys.modules:
         parser.add_option('-C', '--category', action='store', default=None)
