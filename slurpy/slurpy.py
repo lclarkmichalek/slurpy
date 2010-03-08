@@ -538,7 +538,7 @@ def main():
                   os.getcwd(), slurpy.RESET)
 
             for pkg in slurpy.update():
-                updates.append(pkg[slurpy.NAME]) 
+                updates.append(pkg[Sync.NAME]) 
 
             if updates == []:
                 sys.exit(1) # mimic pacman
