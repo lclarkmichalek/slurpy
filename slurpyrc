@@ -1,0 +1,22 @@
+; /etc/slurpyrc - System wide default config file for slurpy
+
+[settings]
+aur_user:     None
+cookie_file:  slurpy.cookie
+target_dir:   .
+verbose:      0
+use_color:    True
+
+[colors]
+; standard colors
+bold:         1 
+black:        1;30
+red:          1;31
+green:        1;32
+yellow:       1;33
+blue:         1;34
+magenta:      1;35
+cyan:         1;36
+white:        1;37
+
+; vim: ft=ini

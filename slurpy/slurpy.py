@@ -4,16 +4,19 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-01-29 13:13
+# MODIFIED: 2010-02-22 15:28
 
 VERSION = '3.0.0'
 
+
+from ConfigParser import ConfigParser
 import imp
 import os
 import operator
 from optparse import OptionParser
 import re
 import stat
+from string import Template
 import subprocess
 import sys
 
@@ -82,28 +85,11 @@ else:
   -h, --help              show this message
       --version           show version information"""
 
+
 # utility functions
 def read_config():
-    """Read in the slurpy runtime config to set default options."""
+    """ Read in the slurpy runtime config to set default options. """
 
-    # configuration options, sane defaults
-    config_opts = {
-        "aur_user" : None,
-        "colors": {
-            "red":     "boldred", 
-            "green":   "boldgreen",
-            "yellow":  "boldyellow", 
-            "blue":    "boldblue",
-            "magenta": "boldmagenta", 
-            "cyan":    "boldcyan",
-            "white":   "boldwhite",
-        },
-        "cookie_file": "~/.slurpy.aurcookie",
-        "target_dir": ".",
-        "use_color": False,
-        "verbose": 0,
-    }
-    
     home = os.getenv('HOME')
     xdg_config_home = os.getenv('XDG_CONFIG_HOME')
     if xdg_config_home is None:
@@ -118,39 +104,24 @@ def read_config():
     elif os.path.exists(home_slurpyrc_path):
         config_path = home_slurpyrc_path
 
-    # if there's a config file, load it as a module
+
+    config = ConfigParser()
+    try:
+        config.readfp(open('/etc/slurpyrc'))
+    except IOError:
+        print "error: /etc/slurpyrc could not be read"
+        sys.exit(1)
+
     if config_path is not None:
-        
-        # ensure config file can't be tweaked by another user
-        if os.stat(config_path)[stat.ST_MODE] & stat.S_IWGRP or \
-            os.stat(config_path)[stat.ST_MODE] & stat.S_IWOTH:
-            print "error: Permissions on %s must be 755 or less." % config_path
-            sys.exit(1)
-
-        try:
-            slurpyrc = imp.load_source("slurpyrc", config_path)
-            user_config = [x for x in slurpyrc.__dict__.items() \
-                            if x[0].isupper() and not x[0].startswith('_')]
-
-            for var, val in user_config:
-                var = var.lower()
-                if var not in config_opts:
-                    print "info: Ignoring unknown option %s" % (var)
-                else:
-                    config_opts[var] = val
-
-        except (SyntaxError, NameError):
-            print "error: There is a syntax error in your config file."
-            print "Please correct this and try again."
-            sys.exit(1)
+        config.read(config_path)
 
     for pathparm in ("cookie_file", "target_dir"):
-        config_opts[pathparm] = os.path.expanduser(config_opts[pathparm])
+        config.set("settings", pathparm, os.path.expanduser(config.get('settings', pathparm)))
 
-    return config_opts
+    return config
 
 def fold(text, width=80, pad=0):
-    """Wrap <text> at <width> characters.  Pad left side with <pad> spaces."""
+    """ Wrap <text> at <width> characters.  Pad left side with <pad> spaces. """
     output = ''
     for line in text.split('\n'):
         while len(line) > width:
@@ -161,65 +132,43 @@ def fold(text, width=80, pad=0):
 
     return output
 
+def get_win_width():
+    """ Gets the width of the tty.  Default=80 """
+    try:
+        stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
+    except OSError:
+        return 80
+    else:
+        dim = stty.communicate([0])[0]
+        return int(dim.split()[1])
 
+
+# classes
 class Slurpy(object):
     """
     Handles all output pertaining to packages returned by the AUR classes
 
     """
 
-    COLOR_CONF = "/etc/pacman.d/color.conf"
-
     def __init__(self, opts, args):
-        """Sets up colors and sets opts for the class"""
         self.opts = opts
         self.args = args
+        self.format = Formatter(opts.colors)
         if opts.push:
             self.aur = Push(opts, args)
         else:
             self.aur = Sync(opts, args)
 
-        ansi_colors = ["black","red","green","yellow","blue","magenta","cyan",
-                       "white","foreground","gray","boldred","boldgreen",
-                       "boldyellow","boldblue","boldmagenta","boldcyan",
-                       "boldwhite","boldforeground"
-                      ]
-
-        setattr(self, "RESET", "\033[1;m")
-        for col in opts.colors:
-            if opts.colors[col][:4] == "bold":
-                ansi_col = opts.colors[col][4:]
-                if opts.use_color:
-                    if ansi_col == "":
-                        setattr(self, col.upper(), "\033[1m")
-                    else:
-                        setattr(self, col.upper(),
-                            "\033[1;3" + str(ansi_colors.index(ansi_col)) + "m")
-                else:
-                    setattr(self, col.upper(), "\033[1;m")
-            else:
-                ansi_col = opts.colors[col]
-                if opts.use_color:
-                    setattr(self, col.upper(), 
-                            "\033[0;3" + str(ansi_colors.index(ansi_col)) + "m")
-                else:
-                    setattr(self, col.upper(), "\033[3;m")
-
     def search(self):
-        try:
-            stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
-        except OSError:
-            win_width = 80
-        else:
-            dim = stty.communicate([0])[0]
-            win_width = int(dim.split()[1])
+        width = get_win_width()
 
         pkgs = []
         for arg in self.args:
             try:
                 pkgs.extend(self.aur.search(arg))
             except AurRpcError, e:
-                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
+                self.format.render("${red}error${reset}: $error",
+                                   { 'error': e.value })
                 continue
 
         if pkgs == []:
@@ -239,83 +188,78 @@ class Slurpy(object):
 
         for pkg in pkgs:
             if self.opts.quiet:
-                print "{0}{1}{2}".format(self.WHITE, pkg[self.NAME], self.RESET)
+                print pkg[self.NAME]
             else:
-                print "{0}aur{1}/{2}{3}".format(
-                        self.MAGENTA, self.RESET, self.WHITE, pkg[self.aur.NAME]),
+                pkgdesc = strip_slashes(pkg[self.aur.DESCRIPTION])
+                pkgdesc = fold("    %s" % pkgdesc, width, 4)
 
                 if pkg[self.aur.OUT_OF_DATE] == '0':
-                    print "{0}{1}{2}".format(
-                            self.GREEN, pkg[self.aur.VERSION], self.RESET)
+                    ood_color = self.opts.colors['green']
                 else:
-                    print "{0}{1}{2}".format(
-                            self.RED, pkg[self.aur.VERSION], self.RESET)
+                    ood_color = self.opts.colors['red']
 
-                desc = strip_slashes(pkg[self.aur.DESCRIPTION])
-                print fold("    {0}".format(desc), win_width, 4)
-        
+                t = ("$magenta$repo$reset/$white$pkgname $ood_color$pkgver\n"
+                          "$reset$pkgdesc")
+                c = { 'repo': 'aur',
+                      'pkgname': pkg[self.aur.NAME],
+                      'pkgver': pkg[self.aur.VERSION],
+                      'pkgdesc': pkgdesc,
+                      'ood_color': ood_color,
+                }
+                self.format.render(t, c)
 
     def info(self):
-        try:
-            stty = subprocess.Popen(['stty', 'size'], stdout=subprocess.PIPE)
-        except OSError:
-            win_width = 80
-        else:
-            dim = stty.communicate([0])[0]
-            win_width = int(dim.split()[1])
-
+        width = get_win_width()
         for arg in self.args:
             try:
                 pkg = self.aur.info(arg)
             except AurRpcError, e:
-                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
+                self.format.render("${red}error${reset}: $error",
+                                   { 'error': e.value })
                 sys.exit(1)
 
             if pkg[self.aur.OUT_OF_DATE] == '0':
                 out_of_date = "No"
+                ood_color = self.opts.colors['green']
             else:
                 out_of_date = "Yes"
+                ood_color = self.opts.colors['red']
 
-            print "Repository      : {0}aur".format(self.MAGENTA)
+            pkgdesc = strip_slashes(pkg[self.aur.DESCRIPTION])
+            pkgdesc = fold(' '*18 + pkgdesc, width, 18)
 
-            print "{0}Name            : {1}{2}".format( self.RESET, self.WHITE,
-                        pkg[self.aur.NAME])
+            t = ("${reset}${bold}Repository      : $magenta$repo\n"
+                 "${reset}${bold}Name            : $white$pkgname\n"
+                 "${reset}${bold}Version         : $ood_color$pkgver\n"
+                 "${reset}${bold}URL             : $blue$srcurl\n"
+                 "${reset}${bold}AUR Page        : $blue$aururl\n"
+                 "${reset}${bold}Category        : $reset$category\n"
+                 "${reset}${bold}Licenses        : $reset$licenses\n"
+                 "${reset}${bold}Number of Votes : $reset$votes\n"
+                 "${reset}${bold}Out of Date     : $ood_color$out_of_date\n"
+                 "${reset}${bold}Description     : $reset$pkgdesc\n")
 
-            print "{0}Version         :".format(self.RESET),
-            if out_of_date == "Yes":
-                print "{0}{1}".format(self.RED, pkg[self.aur.VERSION])
-            else:
-                print "{0}{1}".format(self.GREEN, pkg[self.aur.VERSION])
+            c = { 'repo': 'aur',
+                  'pkgname': pkg[self.aur.NAME],
+                  'pkgver': pkg[self.aur.VERSION],
+                  'srcurl': strip_slashes(pkg[self.aur.URL]),
+                  'aururl': "%spackages.php?ID=%s" % (self.aur.AUR_URL, pkg[self.aur.ID]),
+                  'category': self.aur.CATEGORIES[int(pkg[self.aur.CATEGORY])],
+                  'licenses': strip_slashes(pkg[self.aur.LICENSE]),
+                  'votes': pkg[self.aur.VOTES],
+                  'out_of_date': out_of_date,
+                  'ood_color': ood_color,
+                  'pkgdesc': pkgdesc[18:],
+            }
 
-            print "{0}URL             : {1}{2}".format(self.RESET, 
-                        self.CYAN, strip_slashes(pkg[self.aur.URL]))
-
-            print "{0}AUR Page        : {1}{2}/packages.php?ID={3}".format(
-                        self.RESET, self.CYAN, self.aur.AUR_URL, 
-                        pkg[self.aur.ID])
-
-            print "{0}Category        : {1}".format(self.RESET, 
-                        self.aur.CATEGORIES[int(pkg[self.aur.CATEGORY])])
-
-            print "{0}Licenses        : {1}".format(
-                        self.RESET, strip_slashes(pkg[self.aur.LICENSE]))
-
-            print "{0}Number of Votes : {1}".format(
-                        self.RESET, pkg[self.aur.VOTES])
-
-            print "{0}Out of Date     :".format(self.RESET),
-            if out_of_date == "Yes":
-                print "{0}{1}".format(self.RED, out_of_date)
-            else:
-                print "{0}{1}".format(self.GREEN, out_of_date)
-
-            desc = strip_slashes(pkg[self.aur.DESCRIPTION])
-            print fold("{0}Description     : {1}".format(self.RESET, desc), 
-                       win_width, 18) + '\n'
+            self.format.render(t, c)
 
     def download(self):
         dledpkgs = [] # holds list of downloaded pkgs
         repodeps = [] # holds list of dependencies available in pacman repos
+
+        error_template = "${red}error${reset}: $error"
+
         for arg in self.args:
             if arg in repodeps: 
                 continue
@@ -323,10 +267,12 @@ class Slurpy(object):
             try:
                 pkg, deps = self.aur.download(arg)
             except AurRpcError, e:
-                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
+                c = { 'error': e.value }
+                self.format.render(error_template, c)
                 continue
             except AurIOError, e:
-                print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
+                c = { 'error': e.value }
+                self.format.render(error_template, c)
                 continue
 
             if pkg is not None:
@@ -345,10 +291,12 @@ class Slurpy(object):
                     try:
                         dpkg, ddeps = self.aur.download(dep, dledpkgs)
                     except AurRpcError, e:
-                        print "{0}error:{1} {2}".format(self.RED, self.RESET, e.value)
+                        c = { 'error': e.value }
+                        self.format.render(error_template, c)
                         continue
                     except AurIOError, e:
-                        print "{0}error:{1}{2}".format(self.RED, self.RESET, e.value)
+                        c = { 'error': e.value }
+                        self.format.render(error_template, c)
                         continue
 
                     if dpkg is not None:
@@ -374,26 +322,33 @@ class Slurpy(object):
         self.display_result(dledpkgs, repodeps)
 
     def display_result(self, pkgs, deps):
-        """Print a nicely formated result of <pkgs> and <deps>"""
+        """ Print a nicely formated result of <pkgs> and <deps> """
         if pkgs:
             if len(pkgs) == 1 and not deps:
-                print "{0}{1}{2} downloaded to {3}{4}".format(self.WHITE, 
-                            pkgs[0], self.RESET, self.GREEN, os.getcwd()) 
+                t = "${white}${pkgname}${reset} downloaded to ${yellow}${dir}${reset}"
+                c = { 'pkgname': pkgs[0],
+                      'dir': os.getcwd(),
+                }
+                self.format.render(t, c)
             else:
-                print "{0}Packages downloaded to {1}{2}:".format(self.RESET,
-                            self.GREEN, os.getcwd(), self.RESET)
+                t = "Packages downloaded to ${yellow}${dir}${reset}:\n${white}"
                 for pkg in pkgs:
-                    print "   {0}{1}".format(self.WHITE, pkg)
+                    t += "    %s\n" % pkg
+
+                c = { 'dir': os.getcwd(), }
+                self.format.render(t, c)
         if deps:
             if len(deps) == 1 and not pkgs:
-                print "{0}{1}{2} is available in {3}pacman repos{4}".format(
-                            self.WHITE, deps[0], self.RESET, self.YELLOW,
-                            self.RESET)
+                t = "${white}${pkgname}${reset} available in ${magenta}pacman repos"
+                c = { 'pkgname': deps[0], }
+                self.format.render(t, c)
             else:
-                print "\n{0}Dependencies found in {1}pacman repos{2}:".format(
-                            self.RESET, self.YELLOW, self.RESET)
-                for dep in deps:
-                    print "    {0}{1}".format(self.WHITE, dep)
+                t = "${reset}Dependencies found in ${yellow}pacman repos${reset}:\n${white}"
+                for pkg in deps:
+                    t += "    %s\n" % pkg
+
+                c = { 'dir': os.getcwd(), }
+                self.format.render(t, c)
 
     def update(self):
         pkgs = self.aur.update()
@@ -403,24 +358,25 @@ class Slurpy(object):
         
         for pkg in pkgs:
             if not self.opts.download:
-                pkgname = "{0}{1}{2}".format(self.WHITE, pkg[self.aur.NAME],
-                                         self.RESET)
-                inst_ver = "{0}{1}{2}".format(self.GREEN, pkg['_inst_ver'], 
-                                          self.RESET)
+                pkgname = pkg[self.aur.NAME]
+                inst_ver = pkg['_inst_ver']
                 
                 if self.opts.quiet:
                     print pkgname
                 elif self.opts.verbose >= 1:
-                    if pkg[self.aur.OUT_OF_DATE] == '0':
-                        aur_ver = "{0}{1}{2}".format(self.GREEN, 
-                                    pkg[self.aur.VERSION], self.RESET)
-                    else:
-                        aur_ver = "{0}{1}{2}".format(self.RED, 
-                                    pkg[self.aur.VERSION], self.RESET)
-
-                    print "{0} {1} -> {2}".format(pkgname, inst_ver, aur_ver)
+                    aur_ver = pkg[self.aur.VERSION]
+                    t = "$white$pkgname $red$inst_ver $reset-> $green$aur_ver"
+                    c = { 'pkgname': pkgname,
+                          'inst_ver': inst_ver,
+                          'aur_ver': aur_ver,
+                    }
+                    self.format.render(t, c)
                 else:
-                    print "{0} {1}".format(pkgname, inst_ver)
+                    t = "$white$pkgname $red$inst_ver"
+                    c = { 'pkgname': pkgname,
+                          'inst_ver': inst_ver,
+                    }
+                    self.format.render(t, c)
         return pkgs
 
     def login(self):
@@ -429,88 +385,135 @@ class Slurpy(object):
 
         password = getpass('Password: ')
         if not self.aur.login(self.opts.aur_user, password):
-            print "{0}error:{1}".format(self.RED, self.RESET), \
-                  "Bad username or password. Please try again." 
+            t = "${red}error${reset}: Bad username or password. Please try again." 
+            self.format.render(t, {})
             sys.exit(1)
 
     def upload(self):
         for arg in self.args:
             if not os.path.isfile(arg):
-                print "{0}error:{1}{2} ".format(self.RED, self.RESET, arg), \
-                      "does not exist or is not a file."
+                t = "${red}error${reset}: $white$arg $resetdoes not exist or is not a file"
+                c = { 'arg': arg, }
+                self.format.render(t, c)
                 sys.exit(1)
 
             success = None
             try:
                 pkg = self.aur.upload(arg, self.opts.category)
             except AurUploadError, e:
-                print "{0}error:{1} {2}: {3}".format(self.RED, self.RESET,
-                                                    e.fname, e.msg),
+                t = "${red}error${reset}: $white$fname $reset$msg"
+                c = { 'fname': e.fname, 
+                      'msg': e.msg,
+                }
+                self.format.render(t, c)
                 sys.exit(1)
 
             if pkg:
-                print "{0}{1}{2} has been uploaded".format(self.WHITE, pkg,
-                        self.RESET)
+                t = "$white$pkg $reset has been uploaded"
+                c = { 'pkg': pkg, }
+                self.format.render(t, c)
             else:
-                print "{0}error:{1} Unknown error.".format(self.RED, self.RESET),
-            
+                t = "${red}error${reset}: Unknown error"
+                self.format.render(t, {})
+                sys.exit(1)
 
+class Formatter(object):
+    """ Format all output using ansi color escape codes """
+
+    def __init__(self, color_context):
+        self.colors = color_context
+        self.template = Template(None)
+
+    def render(self, text, context):
+        """ Renders template text, using context as the template context """
+        self.template.template = text
+        context.update(self.colors)
+        print self.template.substitute(context)
+        
+    
 # main processing 
 def main():
-    conf = read_config()
+    config = read_config()
 
     _version = ' '.join(("%prog",VERSION))
     parser = OptionParser(version=_version, conflict_handler="resolve")
     parser.add_option('-d', '--download', action='count')
-    parser.add_option('-c', '--color', action='store_true', dest="use_color",
-                            default=conf['use_color'])
     parser.add_option('-f', '--force', action='store_true')
+    parser.add_option('-c', '--color', action='store_true', dest='use_color',
+                            default=config.getboolean('settings', 'use_color'))
     parser.add_option('-h', '--help', action='store_true')
     parser.add_option('-i', '--info', action='store_true')
     parser.add_option('-q', '--quiet', action='store_true')
     parser.add_option('-s', '--search', action='store_true')
     parser.add_option('-t', '--save-to', dest='target_dir', action='store',
-                            default=conf['target_dir'])
+                            default=config.get('settings', 'target_dir'))
     parser.add_option('-u', '--update', action='store_true')
     parser.add_option('-v', '--verbose', action='count',
-                            default=conf['verbose'])
+                            default=config.getint('settings', 'verbose'))
     parser.add_option('-S', '--sync', action='store_true', default=True)
 
     if 'pycurl' in sys.modules:
         parser.add_option('-C', '--category', action='store', default=None)
         parser.add_option('-P', '--push', action='store_true', default=False)
         parser.add_option('-U', '--user', action='store', dest='aur_user',
-                            default=conf['aur_user'])
+                            default=config.get('settings', 'aur_user'))
         parser.add_option('', '--cookie-file', action='store',
-                            default=conf['cookie_file'])
+                            default=config.get('settings', 'cookie_file'))
 
     opts, args = parser.parse_args()
-    setattr(opts, 'colors', conf['colors'])
 
     if not getattr(opts, 'push', False):
         setattr(opts, 'push', False)
+
+    # dict to hold ansi escape color codes
+    colors = { 'reset':   '',
+               'bold':    '',
+               'black':   '',
+               'red':     '',
+               'green':   '',
+               'blue':    '',
+               'magenta': '',
+               'yellow':  '',
+               'cyan':    '',
+               'white':   '',
+    }
+
+    if config.getboolean('settings', 'use_color'):
+        # will load defaults from /etc/slurpyrc or from the user's config
+        for c in colors.keys():
+            ansi = config.get('colors', c)
+            colors.update({ c: '\033[%sm' % ansi})
+    setattr(opts, 'colors', colors)
 
     try:
         if opts.target_dir is not None and not opts.push:
             os.chdir(opts.target_dir)
     except OSError:
-        print "{0}error:{1}{2}".format(slurpy.RED, slurpy.RESET, \
-              opts.target_dir), "does not exist or is not a directory"
+        t = "${red}error${reset}: $dir does not exist or is not a directory"
+        print Template(t).substitute(
+                { 'red': colors['red'],
+                  'reset': colors['reset'],
+                  'dir': opts.target_dir, 
+                })
         sys.exit(1)
 
     opts.target_dir = os.getcwd()
 
-    slurpy = Slurpy(opts,args)
+    slurpy = Slurpy(opts, args)
 
     if 'pycurl' in sys.modules and opts.push:
         if opts.category is None:
             opts.category = "None"
         elif opts.category not in slurpy.aur.CATEGORIES:
-            print "{0}error:{1} ".format(slurpy.RED, slurpy.RESET), \
-                  "Invalid category (-C, --category)\n\n", \
-                  "Please enter one of the following categories:\n"
+            t = ("${red}error${reset}: Invalid category (-C, --category)\n\n"
+                 "Please enter one of the following categories:\n\n"
+                 "$cat\n")
+            print Template(t).substitute(
+                    { 'red': colors['red'],
+                      'reset': colors['reset'],
+                      'cat': fold(str(slurpy.aur.CATEGORIES[2:]), 80),
+                    })
 
-            print fold(str(slurpy.aur.CATEGORIES[2:]), 80) + '\n'
             sys.exit(1)
 
         slurpy.login()
@@ -519,11 +522,16 @@ def main():
         if opts.update and opts.download:
             updates = [] # holds all available updates
 
-            print "Downloading updates to {0}{1}{2}".format(slurpy.GREEN,
-                  os.getcwd(), slurpy.RESET)
+            t = "${bold}Downloading${reset} updates to ${yellow}${dir}${reset}"
+            print Template(t).substitute(
+                    { 'bold': colors['bold'],
+                      'yellow': colors['yellow'],
+                      'reset': colors['reset'],
+                      'dir': os.getcwd(),
+                    })
 
             for pkg in slurpy.update():
-                updates.append(pkg[slurpy.NAME]) 
+                updates.append(pkg[slurpy.aur.NAME]) 
 
             if updates == []:
                 sys.exit(1) # mimic pacman
@@ -543,4 +551,5 @@ def main():
 
 if __name__ == '__main__':
     main()
+
 # vim:sw=4:ts=4:sts=4:
