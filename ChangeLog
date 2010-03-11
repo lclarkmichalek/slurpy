@@ -1,0 +1,21 @@
+slurpy v2.1.6
+=============
+New Features:
+    * ChangeLog
+    * Ability to upload packages to the AUR via -P|--push
+        - Requires python-pycurl
+    * Passing -v with -u will show old_version -> new_version
+    * --ignore option.  Works just like pacman's --ignore
+    * Added support for [community-testing]
+    * -u now shows the currently installed version, to be more
+      consistant with pacman
+
+Bug Fixes:
+    * Special characters in urls are now escaped (again)
+    * Fixed test for packages in local database to support special
+      characters in package name
+    * Strip quotes from dependencies pulled from PKGBUILDS
+    * Fix #12 - slurpy fails if $XDG_CONFIG_HOME is undefined
+    * Fix #14 - slurpy fails if no pacman.conf is found
+    * Fix #15 - slurpy fails to download foo if foo-bar exists in
+      pacman repos
