@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-02-22 15:28
+# MODIFIED: 2010-03-15 19:15
 
 VERSION = '3.0.0'
 
@@ -261,16 +261,12 @@ class Slurpy(object):
         error_template = "${red}error${reset}: $error"
 
         for arg in self.args:
-            if arg in repodeps: 
+            if arg in repodeps:
                 continue
 
             try:
                 pkg, deps = self.aur.download(arg)
-            except AurRpcError, e:
-                c = { 'error': e.value }
-                self.format.render(error_template, c)
-                continue
-            except AurIOError, e:
+            except (AurRpcError, AurIOError) as e:
                 c = { 'error': e.value }
                 self.format.render(error_template, c)
                 continue
