@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-02-22 15:28
+# MODIFIED: 2010-03-23 13:45
 
 VERSION = '3.0.0'
 
@@ -13,7 +13,7 @@ from ConfigParser import ConfigParser
 import imp
 import os
 import operator
-from optparse import OptionParser
+from optparse import OptionParser, OptionGroup
 import re
 import stat
 from string import Template
@@ -25,65 +25,8 @@ from aur.sync import *
 try:
     from aur.push import *
 except ImportError:
-    __doc__ = """Usage: slurpy [options] <operation> PACKAGE [PACKAGE2..]
-
- Operations:
-  -d, --download          download PACKAGE(s)
-                             if passed twice will also download dependencies
-                             from the AUR
-  -i, --info              show info for PACKAGE(s)
-  -s, --search            search for PACKAGE(s)
-  -u, --update            check explicitly installed packages for available
-                          updates
-                             if passed with --download flag(s), perform download
-                             operation for each package with an available update
-
- General options:
-  -c, --color             use colored output
-  -f, --force             overwrite existing files when dowloading
-  -q, --quiet             show only package names in search/update results
-  -t DIR, --save-to=DIR   target directory where files will be downloaded
-  -v, --verbose           show info messages
-                             if passed twice will also show debug messages
-
-  -h, --help              show this message
-      --version           show version information"""
-else:
-    __doc__ = """Usage: slurpy [options] [--sync] <operation> PACKAGE [PACKAGE2..] 
-       slurpy [options] --push FILE1 [FILE2..] 
-
- Modes:
-  -S, --sync              Retrieve package(s)/info from the AUR (DEFAULT)
-  -P, --push              Upload a package to the AUR
-
- Sync Operations:              
-  -d, --download          download PACKAGE(s)
-                             if passed twice will also download dependencies
-                             from the AUR
-  -i, --info              show info for PACKAGE(s)
-  -s, --search            search for PACKAGE(s)
-  -u, --update            check explicitly installed packages for available
-                          updates 
-                             if passed with --download flag(s), perform download
-                             operation for each package with an available update
-
- Push Options:
-  -C, --category          package category in the AUR
-                             New Package DEFAULT: none
-                             Update DEFAULT: current category in the AUR
-  -U, --user              AUR username
-      --cookie-file       file to store AUR session information in
-
- General options:
-  -c, --color             use colored output
-  -f, --force             overwrite existing files when dowloading
-  -q, --quiet             show only package names in search/update results
-  -t DIR, --save-to=DIR   target directory where files will be downloaded
-  -v, --verbose           show info messages
-                             if passed twice will also show debug messages
-
-  -h, --help              show this message
-      --version           show version information"""
+    # ok, no upload for you
+    pass
 
 
 # utility functions
@@ -435,30 +378,62 @@ class Formatter(object):
 def main():
     config = read_config()
 
+    _usage = '%prog [options] <operation> PACKAGE [PACKAGE2..]'
     _version = ' '.join(("%prog",VERSION))
-    parser = OptionParser(version=_version, conflict_handler="resolve")
-    parser.add_option('-d', '--download', action='count')
-    parser.add_option('-f', '--force', action='store_true')
-    parser.add_option('-c', '--color', action='store_true', dest='use_color',
-                            default=config.getboolean('settings', 'use_color'))
-    parser.add_option('-h', '--help', action='store_true')
-    parser.add_option('-i', '--info', action='store_true')
-    parser.add_option('-q', '--quiet', action='store_true')
-    parser.add_option('-s', '--search', action='store_true')
-    parser.add_option('-t', '--save-to', dest='target_dir', action='store',
-                            default=config.get('settings', 'target_dir'))
-    parser.add_option('-u', '--update', action='store_true')
-    parser.add_option('-v', '--verbose', action='count',
-                            default=config.getint('settings', 'verbose'))
-    parser.add_option('-S', '--sync', action='store_true', default=True)
+    parser = OptionParser(usage=_usage, version=_version)
+
+    mode_opts = OptionGroup(parser, 'Modes')
+    sync_opts = OptionGroup(parser, 'Sync Options')
+    push_opts = OptionGroup(parser, 'Push Options')
+    general_opts = OptionGroup(parser, 'General Options')
+
+    mode_opts.add_option('-S', '--sync', action='store_true', default=True,
+        help='Retrieve package(s)/info from the AUR (DEFAULT)')
 
     if 'pycurl' in sys.modules:
-        parser.add_option('-C', '--category', action='store', default=None)
-        parser.add_option('-P', '--push', action='store_true', default=False)
-        parser.add_option('-U', '--user', action='store', dest='aur_user',
-                            default=config.get('settings', 'aur_user'))
-        parser.add_option('', '--cookie-file', action='store',
-                            default=config.get('settings', 'cookie_file'))
+        mode_opts.add_option('-P', '--push', action='store_true', default=False,
+            help='Upload a package to the AUR')
+
+    sync_opts.add_option('-d', '--download', action='count', 
+        help='download PACKAGE(s). if passed twice try to download '
+             'dependencies from the AUR')
+    sync_opts.add_option('-f', '--force', action='store_true', 
+        help='overwrite existing files when dowloading')
+    sync_opts.add_option('-s', '--search', action='store_true',
+        help='search for PACKAGE(s)')
+    sync_opts.add_option('-u', '--update', action='store_true',
+        help='check explicitly installed packages for available updates. if '
+             'passed with -d, perform download operation for each package '
+             'with an available update')
+    sync_opts.add_option('-i', '--info', action='store_true',
+        help='show info for PACKAGE(s)')
+    sync_opts.add_option('-t', '--save-to', dest='target_dir', action='store',
+        default=config.get('settings', 'target_dir'), metavar="PATH",
+        help='target directory where files will be downloaded')
+
+    push_opts.add_option('', '--cookie-file', action='store',
+        default=config.get('settings', 'cookie_file'), metavar="FILE",
+        help='file to store AUR session information in')
+    push_opts.add_option('-C', '--category', action='store', default=None, metavar="NAME",
+        help='package category in the AUR. DEFAULT: none or current category in the AUR')
+    push_opts.add_option('-U', '--user', action='store', dest='aur_user',
+        default=config.get('settings', 'aur_user'), metavar="USER",
+        help='AUR username')
+
+    parser.add_option('-c', '--color', action='store_true', dest='use_color',
+        default=config.getboolean('settings', 'use_color'),
+        help='use colored output')
+    parser.add_option('-q', '--quiet', action='store_true',
+        help='show only package names in search/update results')
+    parser.add_option('-v', '--verbose', action='count',
+        default=config.getint('settings', 'verbose'),
+        help='show info messages\nif passed twice will also show debug messages')
+
+    parser.add_option_group(mode_opts)
+    parser.add_option_group(sync_opts)
+
+    if 'pycurl' in sys.modules:
+        parser.add_option_group(push_opts)
 
     opts, args = parser.parse_args()
 
