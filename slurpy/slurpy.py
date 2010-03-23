@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-03-23 13:45
+# MODIFIED: 2010-03-23 14:25
 
 VERSION = '3.0.0'
 
@@ -198,64 +198,35 @@ class Slurpy(object):
             self.format.render(t, c)
 
     def download(self):
+        packages = self.args[:] # don't want to modify self.args
         dledpkgs = [] # holds list of downloaded pkgs
         repodeps = [] # holds list of dependencies available in pacman repos
 
         error_template = "${red}error${reset}: $error"
 
-        for arg in self.args:
-            if arg in repodeps: 
+        for package in packages:
+            if package in repodeps:
                 continue
 
             try:
-                pkg, deps = self.aur.download(arg)
-            except AurRpcError, e:
-                c = { 'error': e.value }
-                self.format.render(error_template, c)
-                continue
-            except AurIOError, e:
+                pkg, deps = self.aur.download(package, dledpkgs)
+            except (AurRpcError, AurIOError) as e:
                 c = { 'error': e.value }
                 self.format.render(error_template, c)
                 continue
 
-            if pkg is not None:
-                dledpkgs.append(pkg)
             if deps is not None:
                 repodeps.extend(deps)
 
-            if self.opts.download > 1:
-                deps = self.aur.get_depends(arg)
-
-                for dep in deps:
-                    dpkgs = []
-                    drdeps = []
-
-                    # download dependencies, but ignore already downloaded pkgs
-                    try:
-                        dpkg, ddeps = self.aur.download(dep, dledpkgs)
-                    except AurRpcError, e:
-                        c = { 'error': e.value }
-                        self.format.render(error_template, c)
-                        continue
-                    except AurIOError, e:
-                        c = { 'error': e.value }
-                        self.format.render(error_template, c)
-                        continue
-
-                    if dpkg is not None:
-                        dpkgs.append(dpkg)
-                    if ddeps is not None:
-                        drdeps.extend(ddeps)
-
-                    for p in dpkgs:
-                        d = self.aur.get_depends(p)
-                        if d != []:
-                            deps.extend(d)
-                    
-                    if dpkgs != []:
-                        dledpkgs.extend(dpkgs)
-                    if drdeps != []:
-                        repodeps.extend(drdeps)
+            if pkg is not None:
+                dledpkgs.append(pkg)
+                if self.opts.download > 1:
+                    deps = self.aur.get_depends(pkg)
+                    for dep in deps:
+                        if self.aur.in_sync_db(dep):
+                            repodeps.append(dep)
+                        else:
+                            packages.append(dep)
 
         # remove dups
         repodeps = list(set(repodeps))
@@ -263,6 +234,7 @@ class Slurpy(object):
         dledpkgs.sort()
 
         self.display_result(dledpkgs, repodeps)
+
 
     def display_result(self, pkgs, deps):
         """ Print a nicely formated result of <pkgs> and <deps> """
