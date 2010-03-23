@@ -4,7 +4,7 @@
 # Randy Morris <randy@rsontech.net>
 #
 # CREATED:  2009-12-15 09:41
-# MODIFIED: 2010-03-23 14:25
+# MODIFIED: 2010-03-23 14:42
 
 VERSION = '3.0.0'
 
@@ -494,7 +494,7 @@ def main():
         elif opts.download:
             slurpy.download()
         else:
-            print __doc__
+            parser.print_help()
 
 if __name__ == '__main__':
     main()
