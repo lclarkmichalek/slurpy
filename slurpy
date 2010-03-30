@@ -25,7 +25,7 @@
 # CREATED:  2008-08-22 18:41
 # MODIFIED: 2010-01-29 19:10
 
-VERSION = '2.1.5-dev'
+VERSION = '2.2.0'
 
 import glob
 import os
