@@ -9,7 +9,8 @@ use_color:    True
 
 [colors]
 ; standard colors
-bold:         1 
+reset:        1;
+bold:         1
 black:        1;30
 red:          1;31
 green:        1;32
