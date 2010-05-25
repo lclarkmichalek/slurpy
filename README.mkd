@@ -1,3 +1,67 @@
-Please see the [project page][0] for more information.
+slurpy is an [AUR][0] helper script written in Python.  Originally slurpy was a port of [arson][1] to Python, but has long since diverged in to it's own project.
 
-[0]: http://rsontech.net/projects/slurpy
+<br />
+
+**What it is:**
+
+  * Faster searching, downloading, retrieving info, and checking for updates for AUR packages.
+  * Dependency resolution when downloading.
+  * Fast uploading of source packages to the AUR from the command line.
+  * Written in Python with only two optional dependencies:
+    * [python-cjson][2] - makes processing faster with large result sets.
+    * [python-pycurl][3] - for upload feature.
+  * Colorized output.  Color is disabled by default and must be enabled with -c|--color.
+
+<br />
+
+**What it isn't:**
+
+  * slurpy is not a way to automate the download-build-install process.  It is only a means to manage PKGBUILDS.  If you are looking for an automatic installer, check out [packer][4] or [clyde][5].
+  * slurpy is not a prettyfier.  Output is modeled after pacman output to keep a uniform feel across tools.
+
+<br />
+
+**Where can I get it?**
+
+  * I've uploaded [slurpy][6] and [slurpy-git][7] to the AUR, use your *current* favorite tools to install.  Please don't litter the comment page there, if you've got feedback of any kind, [contact me][8].
+
+<br />
+
+**I found a bug! What do I do?**
+
+  * Fix it!  If you don't know python or don't have the time, at least open a bug repot in the [issue tracker][9] so I can take care of it as I get time.
+
+<br />
+
+**I tried slurpy but I don't like it.  What else is out there?**
+
+    There are tons of AUR helpers out there, mainly in two varieties.
+
+    * Slurpy-like -- only download source packages, do not wrap pacman/makepkg.
+      * [arson][1]
+      * [aurget][10]
+      * [cower][11]
+      * [pbget][12]
+
+    * Pacman/makepkg wrappers or replacements
+
+      * [packer][4]
+      * [clyde][5]
+      * [bauerbill][13]
+      * [yaourt][14]
+
+[0]: http://aur.archlinux.org
+[1]: http://evaryont.github.com/arson
+[2]: http://www.archlinux.org/packages/?q=python-cjson
+[3]: http://www.archlinux.org/packages/?q=python-pycurl
+[4]: http://github.com/bruenig/packer/
+[5]: http://github.com/kiwi/clyde/
+[6]: http://aur.archlinux.org/packages.php?ID=28285
+[7]: http://aur.archlinux.org/packages.php?ID=27660
+[8]: http://rsontech.net/about/
+[9]: http://github.com/rson/slurpy/issues/
+[10]: http://pbrisbin.com:8080/pages/aurget2.html
+[11]: http://xyne.archlinux.ca/projects/pbget
+[12]: http://github.com/falconindy/cower/
+[13]: http://xyne.archlinux.ca/projects/pbget
+[14]: http://archlinux.fr/yaourt-en/
