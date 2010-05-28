@@ -131,7 +131,7 @@ class Slurpy(object):
 
         for pkg in pkgs:
             if self.opts.quiet:
-                print pkg[self.NAME]
+                print pkg[self.aur.NAME]
             else:
                 pkgdesc = strip_slashes(pkg[self.aur.DESCRIPTION])
                 pkgdesc = fold("    %s" % pkgdesc, width, 4)
