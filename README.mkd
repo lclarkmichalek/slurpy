@@ -61,7 +61,7 @@ There are tons of AUR helpers out there, mainly in two varieties.
 [8]: http://rsontech.net/about/
 [9]: http://github.com/rson/slurpy/issues/
 [10]: http://pbrisbin.com:8080/pages/aurget2.html
-[11]: http://xyne.archlinux.ca/projects/pbget
-[12]: http://github.com/falconindy/cower/
+[12]: http://xyne.archlinux.ca/projects/pbget
+[11]: http://github.com/falconindy/cower/
 [13]: http://xyne.archlinux.ca/projects/bauerbill/
 [14]: http://archlinux.fr/yaourt-en/
