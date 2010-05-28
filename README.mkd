@@ -39,15 +39,15 @@ There are tons of AUR helpers out there, mainly in two varieties.
 
   * Slurpy-like -- only download source packages, do not wrap pacman/makepkg.
     * [arson][1]
-    * [aurget][10]
     * [cower][11]
     * [pbget][12]
 
-  * Pacman/makepkg wrappers or replacements
+  * Pacman and/or makepkg wrappers or replacements
 
-    * [packer][4]
-    * [clyde][5]
+    * [aurget][10]
     * [bauerbill][13]
+    * [clyde][5]
+    * [packer][4]
     * [yaourt][14]
 
 [0]: http://aur.archlinux.org
@@ -63,5 +63,5 @@ There are tons of AUR helpers out there, mainly in two varieties.
 [10]: http://pbrisbin.com:8080/pages/aurget2.html
 [11]: http://xyne.archlinux.ca/projects/pbget
 [12]: http://github.com/falconindy/cower/
-[13]: http://xyne.archlinux.ca/projects/pbget
+[13]: http://xyne.archlinux.ca/projects/bauerbill/
 [14]: http://archlinux.fr/yaourt-en/
