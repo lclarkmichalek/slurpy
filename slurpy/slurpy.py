@@ -243,7 +243,7 @@ class Slurpy(object):
 
         for pkg in pkgs:
             if self.opts.quiet:
-                print "{0}{1}{2}".format(self.WHITE, pkg[self.NAME], self.RESET)
+                print "{0}{1}{2}".format(self.WHITE, pkg[self.aur.NAME], self.RESET)
             else:
                 print "{0}aur{1}/{2}{3}".format(
                         self.MAGENTA, self.RESET, self.WHITE, pkg[self.aur.NAME]),
