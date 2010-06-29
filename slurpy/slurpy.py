@@ -280,14 +280,14 @@ class Slurpy(object):
                     print pkgname
                 elif self.opts.verbose >= 1:
                     aur_ver = pkg[self.aur.VERSION]
-                    t = "$white$pkgname $red$inst_ver $reset-> $green$aur_ver"
+                    t = "$white$pkgname $red$inst_ver $reset-> $green$aur_ver$reset"
                     c = { 'pkgname': pkgname,
                           'inst_ver': inst_ver,
                           'aur_ver': aur_ver,
                     }
                     self.format.render(t, c)
                 else:
-                    t = "$white$pkgname $red$inst_ver"
+                    t = "$white$pkgname $red$inst_ver$reset"
                     c = { 'pkgname': pkgname,
                           'inst_ver': inst_ver,
                     }
