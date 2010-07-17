@@ -15,6 +15,7 @@ import sys
 import gzip
 import urllib
 import urllib2
+import httplib
 import subprocess
 from distutils import version as Version
 from tarfile import TarFile
@@ -55,6 +56,25 @@ def json_decode(url):
         return Json.decode(data)
     except AttributeError:
         return Json.loads(data)
+
+def json_mdecode(pkglist):
+    conn = httplib.HTTPConnection("aur.archlinux.org")
+    headers = {"Connection": "Keep-Alive",
+            'User-agent': 'slurpy/%s' % VERSION,
+            'Accept-encoding': 'gzip'}
+    results = []
+    for pkg in pkglist:
+        conn.request("GET", "/rpc.php?type=info&arg=%s" % pkg, headers=headers)
+        response = conn.getresponse()
+        data = response.read()
+        if response.getheader('content-encoding', None) == 'gzip':
+            data = gzip.GzipFile(fileobj=StringIO(data)).read()
+        try:
+            results.append(Json.decode(data))
+        except AttributeError:
+            results.append(Json.loads(data))
+    return results
+
 
 def strip_slashes(text):
     """Remove extraneous backslashes (\) from <text>"""
@@ -219,19 +239,26 @@ class Sync(AUR):
         Returns a list dicts representing the package.'"""
         updates = []
 
-        with subprocess.Popen(["pacman", "-Qm"], 
-                              stdout=subprocess.PIPE).stdout as fd: 
-            data = fd.readlines()
-        
-        for ln in data:
-            name, inst_ver  = ln[:-1].split(' ')
-            pkg = json_decode(self.INFO_URL + name)['results']
+        with subprocess.Popen(["pacman", "-Qm"],
+                              stdout=subprocess.PIPE).stdout as fd:
+            data = [l.strip() for l in fd]
+
+        try:
+            aur_data = json_mdecode(e.split(' ')[0] for e in data)
+# If keep-alive for some reason fails (eg due to timeout), due to (possibly) a bug in httplib
+# trying to read the response raises httplib.BadStatusLine.
+        except httplib.BadStatusLine:
+            aur_data = [json_decode(self.INFO_URL + pkg.split(' ')[0]) for pkg in data]
+
+        for index, line in enumerate(data):
+            name, inst_ver = line.split(" ")
+            pkg = aur_data[index]["results"]
             if pkg != "No result found":
-               aur_ver = Version.LooseVersion(pkg[self.VERSION])
-               inst_ver = Version.LooseVersion(inst_ver)
-               if aur_ver > inst_ver:
-                   pkg['_inst_ver'] = str(inst_ver)
-                   updates.append(pkg)
+                aur_ver = Version.LooseVersion(pkg[self.VERSION])
+                inst_ver = Version.LooseVersion(inst_ver)
+                if aur_ver > inst_ver:
+                    pkg['_inst_ver'] = str(inst_ver)
+                    updates.append(pkg)
 
         return updates
 
