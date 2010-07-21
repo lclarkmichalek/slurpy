@@ -251,13 +251,18 @@ class Sync(AUR):
             aur_data = [json_decode(self.INFO_URL + pkg.split(' ')[0]) for pkg in data]
 
         for index, line in enumerate(data):
-            name, inst_ver = line.split(" ")
             pkg = aur_data[index]["results"]
             if pkg != "No result found":
-                aur_ver = Version.LooseVersion(pkg[self.VERSION])
-                inst_ver = Version.LooseVersion(inst_ver)
-                if aur_ver > inst_ver:
-                    pkg['_inst_ver'] = str(inst_ver)
+                name, installed_version = line.split(" ")
+# due to d.v.lv not handeling versions with '-' in them, split and compare the head and tail seperatly
+                i_ver, i_rel = installed_version.split("-")
+                a_ver, a_rel = pkg[self.VERSION].split("-")
+                i_ver = Version.LooseVersion(i_ver)
+                i_rel = Version.LooseVersion(i_rel)
+                a_ver = Version.LooseVersion(a_ver)
+                a_rel = Version.LooseVersion(a_rel)
+                if a_ver > i_ver or (a_ver == i_ver and a_rel > i_rel):
+                    pkg['_inst_ver'] = installed_version
                     updates.append(pkg)
 
         return updates
